@@ -4,6 +4,15 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from windrose import WindroseAxes
+import socket
+
+device_name = socket.gethostname()
+print("Device name:", device_name)
+
+if device_name == "DESKTOP-K3UQK9B":
+    print("Chạy config dành riêng cho máy này 🚀")
+if device_name == "R734":
+    print("Máy này là máy của Huyền này 🚀")
 
 
 class WindroseGUI:
