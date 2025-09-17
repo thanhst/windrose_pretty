@@ -1,21 +1,13 @@
 import pandas as pd
 from tkinter import ttk, filedialog, messagebox
 
-
 class DataFrameLoader:
-    def __init__(self, parent):
+    def __init__(self, parent, tree, WindComponent, SpeedComponent):
         self.parent = parent
         self.df = None
-
-        # Frame trên: chọn file + hiển thị dữ liệu
-        self.frame = ttk.Frame(parent.root)
-        self.frame.pack(fill="both", expand=True, padx=10, pady=10)
-
-        self.load_btn = ttk.Button(self.frame, text="Load File", command=self.load_file)
-        self.load_btn.pack(anchor="w")
-
-        self.tree = ttk.Treeview(self.frame, show="headings")
-        self.tree.pack(fill="both", expand=True)
+        self.tree=tree
+        self.WindComponent=WindComponent
+        self.SpeedComponent=SpeedComponent
 
     def load_file(self):
         file_path = filedialog.askopenfilename(
@@ -30,21 +22,42 @@ class DataFrameLoader:
             else:
                 self.df = pd.read_excel(file_path)
 
-            # Update treeview
+            cols = list(self.df.columns)
+            
+            self.detect_direction_speed_columns(cols)
+            self.update_direction_speed()
             self.update_tree()
-            self.parent.on_data_loaded(self.df)
 
             messagebox.showinfo("Thành công", "File đã được load!")
+
         except Exception as e:
             messagebox.showerror("Lỗi", f"Không load được file: {e}")
 
     def update_tree(self):
-        self.tree.delete(*self.tree.get_children())
-        self.tree["columns"] = list(self.df.columns)
+            self.tree.delete(*self.tree.get_children())
+            self.tree["columns"] = list(self.df.columns)
 
-        for col in self.df.columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=100, anchor="center")
+            for col in self.df.columns:
+                self.tree.heading(col, text=col)
+                self.tree.column(col, width=100, anchor="center")
 
-        for _, row in self.df.head(100).iterrows():
-            self.tree.insert("", "end", values=list(row))
+            for _, row in self.df.head(100).iterrows():
+                self.tree.insert("", "end", values=list(row))
+            
+    def detect_direction_speed_columns(self, columns):
+        direction_keywords = ["direction", "hướng", "dir"]
+        speed_keywords = ["speed", "vận tốc", "v", "spd"]
+
+        direction_cols = [col for col in columns if any(
+            kw.lower() in col.lower() for kw in direction_keywords) or col.lower().startswith("hướng")]
+        speed_cols = [col for col in columns if any(
+            kw.lower() in col.lower() for kw in speed_keywords) or col.lower().startswith("v")]
+
+        return direction_cols, speed_cols
+    
+    def update_direction_speed(self):
+        direction_cols, speed_cols = self.detect_direction_speed_columns(list(self.df.columns))
+        for d in direction_cols:
+            self.WindComponent.add_wind_item(d)
+        for s in speed_cols:
+            self.SpeedComponent.add_speed_item(s)

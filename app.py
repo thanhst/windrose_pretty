@@ -5,7 +5,11 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from windrose import WindroseAxes
 import socket
-from functools import partial
+from components.dataframe_loader import DataFrameLoader
+from events.scroll_event import scroll_event
+from components.filter_component import Filter_component
+from components.wind_component import Wind_component
+from components.velocity_component import Velocity_component
 
 device_name = socket.gethostname()
 print("Device name:", device_name)
@@ -14,57 +18,49 @@ if device_name == "DESKTOP-K3UQK9B":
     print("Chạy config dành riêng cho máy này 🚀")
 if device_name == "R734":
     print("Máy này là máy của Huyền này 🚀")
-
+if device_name == "Thanh-Laptop":
+    print("Máy này là máy của Thanh này 🚀")
 
 class WindroseGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Windrose Data Explorer")
-        self.root.geometry(f"{int(root.winfo_screenwidth()*0.75)}x{int(root.winfo_screenheight()*0.75)}")
+        self.root.geometry(f"{int(root.winfo_screenwidth()*0.85)}x{int(root.winfo_screenheight()*0.85)}")
+        root.columnconfigure(0, weight=1)
 
-        self.df = None
-        self.filters = []  # Sửa thành list
+        
+        self.filters = []
 
-        # Frame trên: chọn file + hiển thị dữ liệu
         top_frame = ttk.Frame(root)
-        top_frame.pack(fill="both", expand=True, padx=10, pady=10)
+        top_frame.grid(padx=10, pady=10, sticky="nsew", row=0, column=0)
 
-        self.load_btn = ttk.Button(top_frame, text="Load File", command=self.load_file)
-        self.load_btn.pack(anchor="w")
-
-        self.tree = ttk.Treeview(top_frame, show="headings")
-        self.tree.pack(fill="both", expand=True)
-
-        # Frame giữa: chọn cột và thêm bộ lọc
         mid_frame = ttk.Frame(root)
-        mid_frame.pack(fill="x", padx=10, pady=10)
-
-        frame_direction_v = ttk.Frame(mid_frame)
-        frame_direction_v.grid(row=0,column=0, columnspan=3, sticky="ew")
-
-        self.direction_var = tk.StringVar()
-        self.speed_var = tk.StringVar()
-
-        # self.direction_combo = ttk.Combobox(mid_frame, textvariable=self.direction_var, state="readonly")
-        # self.direction_combo.grid(row=1, column=0, padx=5, sticky="ew")
-
-        # self.speed_combo = ttk.Combobox(mid_frame, textvariable=self.speed_var, state="readonly")
-        # self.speed_combo.grid(row=1, column=2, padx=5, sticky="ew")
-
-        self.add_filter_btn = ttk.Button(mid_frame, text="Thêm Bộ Lọc", command=self.add_filter)
-        self.add_filter_btn.grid(row=2, column=0, pady=10, sticky="w")
-
-        self.plot_btn = ttk.Button(mid_frame, text="Vẽ Hoa Gió", command=self.plot_windrose, width=20,padding=10)
-        self.plot_btn.grid(row=2, column=2, pady=10, sticky="e")
+        mid_frame.grid(padx=10, pady=10, sticky="ew", row=1, column=0)
 
         mid_frame.grid_columnconfigure(0, weight=1)
         mid_frame.grid_columnconfigure(2, weight=1)
+        
+        
+        #helper
 
-        # Frame dưới: hiển thị bộ lọc và biểu đồ
+        self.tree = ttk.Treeview(top_frame, show="headings", height=5)  # chỉ hiện 5 dòng
+        self.tree.pack(fill="x", expand=False)
+
+        self.scroller= scroll_event()
+
+        #dir_v
+        frame_direction_v = ttk.Frame(mid_frame)
+        frame_direction_v.grid(row=0,column=0, columnspan=8, sticky="ew")
+
+
+
+        self.plot_btn = ttk.Button(mid_frame, text="Vẽ Hoa Gió", command=self.plot_windrose, width=20,padding=10)
+        self.plot_btn.grid(row=2, column=5, pady=10, sticky="e")
+        
+        #filter
         filter_frame = ttk.LabelFrame(root, text="Bộ Lọc")
-        filter_frame.pack(fill="x", padx=10, pady=10)
-
-        # Thêm canvas + scrollbar cho vùng bộ lọc
+        filter_frame.grid(padx=10, pady=10, sticky="nsew", row=2, column=0)
+        
         self.filter_canvas = tk.Canvas(filter_frame, height=120)
         self.filter_canvas.pack(side=tk.LEFT, fill="both", expand=True)
 
@@ -74,12 +70,15 @@ class WindroseGUI:
         self.filter_canvas.configure(yscrollcommand=self.filter_scrollbar.set)
         self.filter_area = tk.Frame(self.filter_canvas)
         self.filter_canvas.create_window((0, 0), window=self.filter_area, anchor="nw")
+        
 
-
-
+        #wind
         wind_frame = ttk.LabelFrame(frame_direction_v, text="Hướng")
-        wind_frame.pack(fill="x", padx=10, pady=10)
+        wind_frame.pack(fill="both", padx=10, pady=10, expand=True)
+        wind_frame.pack_propagate(False)
 
+        wind_frame.config(height=int(root.winfo_screenheight() * 0.15))
+        
         self.wind_canvas = tk.Canvas(wind_frame, height=50)
         self.wind_canvas.pack(side=tk.LEFT, fill="both", expand=True)
 
@@ -89,10 +88,16 @@ class WindroseGUI:
         self.wind_canvas.configure(yscrollcommand=self.wind_scrollbar.set)
         self.wind_area = tk.Frame(self.wind_canvas)
         self.wind_canvas.create_window((0,0), window=self.wind_area, anchor="nw")
-
+        
+        self.windcom = Wind_component(self.root,self.wind_canvas,self.wind_area,self.wind_scrollbar)
+        
+        #speed
         speed_frame = ttk.LabelFrame(frame_direction_v, text="Vận tốc gió")
-        speed_frame.pack(fill="x", padx=10, pady=10)
+        speed_frame.pack(fill="both", padx=10, pady=10, expand=True)
+        speed_frame.pack_propagate(False)
 
+        speed_frame.config(height=int(root.winfo_screenheight() * 0.15))
+        
         self.speed_canvas = tk.Canvas(speed_frame, height=50)
         self.speed_canvas.pack(side=tk.LEFT, fill="both", expand=True)
 
@@ -102,128 +107,27 @@ class WindroseGUI:
         self.speed_canvas.configure(yscrollcommand=self.speed_scrollbar.set)
         self.speed_area = tk.Frame(self.speed_canvas)
         self.speed_canvas.create_window((0,0), window=self.speed_area, anchor="nw")
-
-        # Kích hoạt con lăn chuột và scrollbar
-        # self.filter_area.bind("<Enter>", lambda e: self._bind_mousewheel(self.filter_canvas))
-        # self.filter_area.bind("<Leave>", lambda e: self._unbind_mousewheel(self.filter_canvas))
-        # self.filter_canvas.bind('<Configure>', self._on_canvas_configure)
-
-    def add_speed_item(self, value):
-        frame = ttk.Frame(self.speed_area)
-        frame.pack(fill="x", pady=2)
-
-        label = ttk.Label(frame, text=f"{value}")
-        label.pack(side=tk.LEFT, padx=5)
-
-        remove_btn = ttk.Button(frame, text="Xóa", 
-                                command=lambda: self.remove_speed_item(frame))
-        remove_btn.pack(side=tk.RIGHT, padx=5)
-
-        if not hasattr(self, "speed_items"):
-            self.speed_items = []
-        self.speed_items.append({
-            "value": value,
-            "frame": frame
-        })
-
-        self._update_speed_scrollbar()
-
-    def remove_speed_item(self, frame):
-        frame.destroy()
-        self.speed_items = [s for s in self.speed_items if s["frame"] != frame]
-        self._update_speed_scrollbar()
-
-    def _update_speed_scrollbar(self):
-        self.speed_canvas.update_idletasks()
-        self.speed_canvas.configure(scrollregion=self.speed_canvas.bbox("all"))
-
-
-
-    def add_wind_item(self, value):
-        frame = ttk.Frame(self.wind_area)
-        frame.pack(fill="x", pady=2)
-
-        label = ttk.Label(frame, text=f"{value}")
-        label.pack(side=tk.LEFT, padx=5)
-
-        remove_btn = ttk.Button(frame, text="Xóa", 
-                                command=lambda: self.remove_wind_item(frame))
-        remove_btn.pack(side=tk.RIGHT, padx=5)
-
-        if not hasattr(self, "wind_items"):
-            self.wind_items = []
-        self.wind_items.append({
-            "value": value,
-            "frame": frame
-        })
-
-        self._update_wind_scrollbar()
-
-    def remove_wind_item(self, frame):
-        frame.destroy()
-        self.wind_items = [w for w in self.wind_items if w["frame"] != frame]
-        self._update_wind_scrollbar()
-
-    def _update_wind_scrollbar(self):
-        self.wind_canvas.update_idletasks()
-        self.wind_canvas.configure(scrollregion=self.wind_canvas.bbox("all"))
-
-    def detect_direction_speed_columns(self, columns):
-        # Từ khóa cho hướng gió và vận tốc (cả tiếng Anh & Việt)
-        direction_keywords = ["direction", "hướng", "dir"]
-        speed_keywords = ["speed", "vận tốc", "v", "spd"]
-
-        direction_cols = [col for col in columns if any(
-            kw.lower() in col.lower() for kw in direction_keywords) or col.lower().startswith("hướng")]
-        speed_cols = [col for col in columns if any(
-            kw.lower() in col.lower() for kw in speed_keywords) or col.lower().startswith("v")]
+        self.speedcom = Velocity_component(self.root,self.speed_canvas,self.speed_area,self.speed_scrollbar)
         
-        for d in direction_cols:
-            self.add_wind_item(d)
+        self.dataLoader = DataFrameLoader(top_frame,self.tree,self.windcom,self.speedcom)
+        self.load_btn = ttk.Button(top_frame, text="Load File", command=self.dataLoader.load_file)
+        self.load_btn.pack(anchor="w")
+        
+        self.filter = Filter_component(root,self.filter_canvas,self.filter_area,self.filter_scrollbar,self.dataLoader)
 
-        for s in speed_cols:  # speed_cols lấy từ detect_direction_speed_columns
-            self.add_speed_item(s)
-
-        return direction_cols, speed_cols
-
-    def load_file(self):
-        file_path = filedialog.askopenfilename(
-            filetypes=[("Data files", "*.csv *.xls *.xlsx"), ("All files", "*.*")]
-        )
-        if not file_path:
-            return
-
-        try:
-            if file_path.endswith(".csv"):
-                self.df = pd.read_csv(file_path)
-            else:
-                self.df = pd.read_excel(file_path)
-
-            cols = list(self.df.columns)
-            direction_cols, speed_cols = self.detect_direction_speed_columns(cols)
-            # Chỉ hiển thị các cột hướng ở combobox hướng
-            # self.direction_combo["values"] = direction_cols if direction_cols else cols
-            # self.speed_combo["values"] = speed_cols if speed_cols else cols
-
-            # Update bảng dữ liệu
-            self.update_tree()
-
-            messagebox.showinfo("Thành công", "File đã được load!")
-
-        except Exception as e:
-            messagebox.showerror("Lỗi", f"Không load được file: {e}")
-
-    def update_tree(self):
-        self.tree.delete(*self.tree.get_children())
-        self.tree["columns"] = list(self.df.columns)
-
-        for col in self.df.columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=100, anchor="center")
-
-        for _, row in self.df.head(100).iterrows():
-            self.tree.insert("", "end", values=list(row))
-
+        self.add_filter_btn = ttk.Button(mid_frame, text="Thêm Bộ Lọc", command=self.filter.add_filter)
+        self.add_filter_btn.grid(row=2, column=0, pady=10, sticky="w")
+        
+        ttk.Label(mid_frame, text="Bins (vd: 0,1,2,3,4,5)").grid(row=2, column=3, sticky="w", padx=10, pady=2)
+        self.bins_entry = ttk.Entry(mid_frame)
+        self.bins_entry.grid(row=3, column=3, sticky="ew", padx=5, pady=2)
+        self.bins_entry.insert(0, "0,1,2,3,4,5,6,7,8")
+        
+        ttk.Label(mid_frame, text="Calm limit (vd: 0.5)").grid(row=2, column=4, sticky="w", padx=100, pady=2)
+        self.calm_entry = ttk.Entry(mid_frame)
+        self.calm_entry.grid(row=3, column=4, sticky="ew", padx=100, pady=2)
+        self.calm_entry.insert(0, "None")
+        
     def _on_canvas_configure(self, event):
         self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
         bbox = self.filter_canvas.bbox("all")
@@ -235,181 +139,136 @@ class WindroseGUI:
                 if self.filter_scrollbar.winfo_ismapped():
                     self.filter_scrollbar.pack_forget()
                 # Tắt cuộn
-                self._unbind_mousewheel(self.filter_canvas)
+                self.scroller._unbind_mousewheel(self.filter_canvas)
             else:
                 # Hiện scrollbar
                 if not self.filter_scrollbar.winfo_ismapped():
                     self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
                 # Bật cuộn cho canvas, chỉ canvas thôi
-                self._bind_mousewheel(self.filter_canvas)
-
-
-    def _bind_mousewheel(self, widget):
-        widget.bind("<Enter>", lambda e: self._activate_mousewheel(widget))
-        widget.bind("<Leave>", lambda e: self._deactivate_mousewheel(widget))
-
-    def _activate_mousewheel(self, widget, event=None):
-        widget.bind("<MouseWheel>", lambda e: self._on_mousewheel(widget, e))
-
-    def _deactivate_mousewheel(self, widget, event=None):
-        widget.unbind("<MouseWheel>")
-
-    def _on_mousewheel(self, widget, event):
-        widget.yview_scroll(int(-1*(event.delta/120)), "units")
-        return "break"
-    def _unbind_mousewheel(self, widget): 
-        widget.unbind("<MouseWheel>")
-
-    def add_filter(self):
-        if self.df is None:
-            return
-
-        cols = list(self.df.columns)
-        direction_cols, speed_cols = self.detect_direction_speed_columns(cols)
-        filterable_cols = [col for col in cols if col not in direction_cols + speed_cols]
-
-        filter_frame = ttk.Frame(self.filter_area)
-        filter_frame.pack(fill="x", pady=5, expand=True)  # Thêm expand=True
-
-        column_var = tk.StringVar()
-        column_combo = ttk.Combobox(filter_frame, textvariable=column_var, state="readonly")
-        column_combo["values"] = filterable_cols
-        column_combo.grid(row=0, column=0, padx=5, sticky="ew")
-
-        value_var = tk.StringVar()
-        value_combo = ttk.Combobox(filter_frame, textvariable=value_var, state="readonly")
-        value_combo.grid(row=0, column=1, padx=5, sticky="ew")
-
-        def update_values(event):
-            col = column_var.get()
-            if col:
-                unique_values = sorted(self.df[col].dropna().unique())
-                value_combo["values"] = unique_values
-
-        column_combo.bind("<<ComboboxSelected>>", update_values)
-
-        remove_btn = ttk.Button(filter_frame, text="Xóa", command=lambda: self.remove_filter(filter_frame))
-        remove_btn.grid(row=0, column=2, padx=5)
-
-        self.filters.append({
-            "column_var": column_var,
-            "value_var": value_var,
-            "frame": filter_frame
-        })
-
-        # Cập nhật scrollregion sau khi thêm filter
-        self._update_scrollbar()
-        self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
-
-    def remove_filter(self, frame):
-        for f in self.filters:
-            if f["frame"] == frame:
-                f["frame"].destroy()
-                self.filters.remove(f)
-                break
-        # Cập nhật scrollregion sau khi xóa filter
-        self.filter_canvas.update_idletasks()
-        self._update_scrollbar()
-        self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
-    
-    def _update_scrollbar(self):
-        self.filter_canvas.update_idletasks()
-        self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
-
-        bbox = self.filter_canvas.bbox("all")
-        if bbox:
-            content_height = bbox[3] - bbox[1]
-            canvas_height = self.filter_canvas.winfo_height()
-
-            if content_height <= canvas_height:
-                # Ẩn scrollbar
-                if self.filter_scrollbar.winfo_ismapped():
-                    self.filter_scrollbar.pack_forget()
-                self._unbind_mousewheel(self.filter_canvas)
-            else:
-                # Hiện scrollbar
-                if not self.filter_scrollbar.winfo_ismapped():
-                    self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
-                # Bật scroll cho canvas
-                self._activate_mousewheel(self.filter_canvas)
-
-
-    def apply_filters(self):
-        filtered_df = self.df.copy()
-        # Gom các điều kiện lọc theo từng cột
-        filter_dict = {}
-        for f in self.filters:
-            column = f["column_var"].get()
-            value = f["value_var"].get()
-            if column and value:
-                filter_dict.setdefault(column, []).append(value)
-
-        for column, values in filter_dict.items():
-            col_dtype = filtered_df[column].dtype
-            try:
-                if pd.api.types.is_numeric_dtype(col_dtype):
-                    values_cast = [float(v) for v in values]
-                else:
-                    values_cast = [str(v) for v in values]
-            except Exception:
-                values_cast = values
-            filtered_df = filtered_df[filtered_df[column].isin(values_cast)]
-        return filtered_df
+                self.scroller._bind_mousewheel(self.filter_canvas)
 
     def plot_windrose(self):
-        if self.df is None:
+        import numpy as np
+        if self.dataLoader.df is None:
             messagebox.showwarning("Không có dữ liệu", "Hãy load dữ liệu trước khi vẽ biểu đồ!")
             return
 
-        direction_col = self.direction_var.get()
-        speed_col = self.speed_var.get()
+        direction_cols = self.windcom.get_selected_columns()
+        speed_cols = self.speedcom.get_selected_columns()
 
-        if not direction_col or not speed_col:
-            messagebox.showwarning("Chưa chọn", "Hãy chọn cả cột hướng gió và tốc độ gió!")
+        if not direction_cols or not speed_cols:
+            messagebox.showwarning("Chưa chọn", "Hãy chọn ít nhất một cột hướng gió và tốc độ gió!")
             return
 
-        filtered_df = self.apply_filters()
-
+        filtered_df = self.filter.apply_filters()
         if filtered_df.empty:
             messagebox.showwarning("Không có dữ liệu", "Không có dữ liệu sau khi áp dụng bộ lọc!")
             return
 
-        directions = filtered_df[direction_col].dropna().astype(float)
-        speeds = filtered_df[speed_col].dropna().astype(float)
-
-        if directions.empty or speeds.empty:
-            messagebox.showwarning("Không có dữ liệu", "Không có dữ liệu để vẽ biểu đồ!")
-            return
-
-        calm_count = (speeds <= 0.5).sum()
-        calm_percent = calm_count / len(speeds) * 100 if len(speeds) > 0 else 0
-
-        bins = [0, 1, 2, 3, 4, 5, 6, 7, 8]
-
         fig = plt.Figure(figsize=(6, 6), dpi=100)
         ax = WindroseAxes.from_ax(fig=fig)
-        ax.bar(
-            directions,
-            speeds,
-            normed=True,
-            opening=0.8,
-            edgecolor="white",
-            bins=bins,
-            cmap=plt.cm.RdYlBu_r
+
+        total_speeds = []
+
+        for d_col, s_col in zip(direction_cols, speed_cols):
+            if d_col not in filtered_df.columns or s_col not in filtered_df.columns:
+                continue
+
+            directions = filtered_df[d_col].dropna().astype(float)
+
+            if directions.max() <= 36:
+                directions = directions * 10
+
+            speeds = filtered_df[s_col].dropna().astype(float)
+
+            if directions.empty or speeds.empty:
+                continue
+
+            total_speeds.extend(speeds.tolist())
+            
+            try:
+                bins_str = self.bins_entry.get()
+                bins = [float(b.strip()) for b in bins_str.split(",")]
+            except Exception as e:
+                messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}")
+                return
+            
+            calm_input = self.calm_entry.get().strip()
+            if calm_input.lower() == "none" or calm_input =="0":
+                calm_limit = None
+                if len(bins) == 0 or bins[0] != 0:
+                    bins = [0] + bins
+            else:
+                try:
+                    calm_limit = float(calm_input)
+                except Exception as e:
+                    messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}")
+                    return
+            
+            ax.bar(
+                directions ,
+                speeds,
+                normed=True,
+                opening=0.8,
+                edgecolor="white",
+                bins=bins,
+                label=f"{d_col} vs {s_col}",
+                cmap=plt.cm.jet,
+                calm_limit = calm_limit,
+            )
+            
+
+        # --- tính calm wind cho toàn bộ ---
+        total_speeds = pd.Series(total_speeds)
+        calm_count = (total_speeds <= 0.5).sum()
+        calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0
+        ax.set_legend(
+            title="Tốc độ gió (m/s)",
+            loc='lower right',           # anchor point là góc dưới trái của legend
+            bbox_to_anchor=(0, 0),  # (x, y) vị trí ngoài chart
+            fontsize=8,
         )
-        ax.set_legend(title="Tốc độ gió (m/s)", loc="lower right", fontsize=8)
         fig.text(0.5, 0.05, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10)
 
-        # Hiển thị trên cửa sổ mới
         new_window = tk.Toplevel(self.root)
         new_window.title("Windrose Chart")
-        new_window.geometry(f"{int(root.winfo_screenwidth()*0.5)}x{int(root.winfo_screenheight()*0.5)}")
+        new_window.geometry(f"{int(self.root.winfo_screenwidth()*0.5)}x{int(self.root.winfo_screenheight()*0.5)}")
         canvas = FigureCanvasTkAgg(fig, master=new_window)
         canvas.draw()
         canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
 
 
+def open_extra_window(root):
+    from PIL import Image, ImageTk, ImageDraw, ImageFont
+    bg_img = Image.open("./public/img/anh1.jpg").resize((400,300))
+    
+    draw = ImageDraw.Draw(bg_img)
+    font = ImageFont.truetype("arial.ttf", 24)  # bạn có thể đổi font
+    draw.text((50, 50), "Ngầu lòi nè!", fill="yellow", font=font)
+    
+    tk_img = ImageTk.PhotoImage(bg_img)
+    
+    extra_win = tk.Toplevel(root)
+    extra_win.title("Extra Window")
+    extra_win.geometry("300x200")
+    extra_win.after(15000, extra_win.destroy)
+    
+    label = tk.Label(extra_win, image=tk_img)
+    label.image = tk_img
+    label.pack()
+    
+    extra_win.lift()
+    extra_win.focus_force()
+    extra_win.transient(root)   # luôn nổi trên root
+    extra_win.protocol("WM_DELETE_WINDOW", extra_win.destroy)
+
 if __name__ == "__main__":
     root = tk.Tk()
+    if device_name == "R734":
+        open_extra_window(root)
+    if device_name == "Thanh-Laptop":
+        open_extra_window(root)
+        
     app = WindroseGUI(root)
+
     root.mainloop()
