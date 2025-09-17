@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from windrose import WindroseAxes
 import socket
+from functools import partial
 
 device_name = socket.gethostname()
 print("Device name:", device_name)
@@ -75,8 +76,8 @@ class WindroseGUI:
         self.filter_canvas.create_window((0, 0), window=self.filter_area, anchor="nw")
 
         # Kích hoạt con lăn chuột và scrollbar
-        self.filter_area.bind("<Enter>", lambda e: self._bind_mousewheel())
-        self.filter_area.bind("<Leave>", lambda e: self._unbind_mousewheel())
+        self.filter_area.bind("<Enter>", lambda e: self._bind_mousewheel(self.filter_canvas))
+        self.filter_area.bind("<Leave>", lambda e: self._unbind_mousewheel(self.filter_canvas))
         self.filter_canvas.bind('<Configure>', self._on_canvas_configure)
 
         bottom_frame = ttk.LabelFrame(root, text="Windrose Visualization")
@@ -142,25 +143,34 @@ class WindroseGUI:
             content_height = bbox[3] - bbox[1]
             canvas_height = self.filter_canvas.winfo_height()
             if content_height <= canvas_height:
-                self.filter_scrollbar.configure(state="disabled")
+                # Ẩn scrollbar
+                if self.filter_scrollbar.winfo_ismapped():
+                    self.filter_scrollbar.pack_forget()
+                # Tắt cuộn
+                self.filter_canvas.unbind("<MouseWheel>")
             else:
-                self.filter_scrollbar.configure(state="normal")
+                # Hiện scrollbar
+                if not self.filter_scrollbar.winfo_ismapped():
+                    self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
+                # Bật cuộn cho canvas, chỉ canvas thôi
+                self.filter_canvas.bind("<MouseWheel>", self._on_mousewheel)
 
-    def _bind_mousewheel(self):
-        self.filter_canvas.bind("<Enter>", self._activate_mousewheel)
-        self.filter_canvas.bind("<Leave>", self._deactivate_mousewheel)
 
-    def _activate_mousewheel(self, event):
-        self.filter_canvas.bind("<MouseWheel>", self._on_mousewheel)
+    def _bind_mousewheel(self, widget):
+        widget.bind("<Enter>", lambda e: self._activate_mousewheel(widget))
+        widget.bind("<Leave>", lambda e: self._deactivate_mousewheel(widget))
 
-    def _deactivate_mousewheel(self, event):
-        self.filter_canvas.unbind("<MouseWheel>")
+    def _activate_mousewheel(self, widget, event=None):
+        widget.bind("<MouseWheel>", partial(self._on_mousewheel, widget))
 
-    def _on_mousewheel(self, event):
-        self.filter_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-    
-    def _unbind_mousewheel(self):
-        self.filter_canvas.unbind("<MouseWheel>")
+    def _deactivate_mousewheel(self, widget, event=None):
+        widget.unbind("<MouseWheel>")
+
+    def _on_mousewheel(self, widget, event):
+        widget.yview_scroll(int(-1*(event.delta/120)), "units")
+        return "break"
+    def _unbind_mousewheel(self, widget): 
+        widget.unbind("<MouseWheel>")
 
     def add_filter(self):
         if self.df is None:
@@ -200,7 +210,7 @@ class WindroseGUI:
         })
 
         # Cập nhật scrollregion sau khi thêm filter
-        self.filter_canvas.update_idletasks()
+        self._update_scrollbar()
         self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
 
     def remove_filter(self, frame):
@@ -211,7 +221,30 @@ class WindroseGUI:
                 break
         # Cập nhật scrollregion sau khi xóa filter
         self.filter_canvas.update_idletasks()
+        self._update_scrollbar()
         self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
+    
+    def _update_scrollbar(self):
+        self.filter_canvas.update_idletasks()
+        self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
+
+        bbox = self.filter_canvas.bbox("all")
+        if bbox:
+            content_height = bbox[3] - bbox[1]
+            canvas_height = self.filter_canvas.winfo_height()
+
+            if content_height <= canvas_height:
+                # Ẩn scrollbar
+                if self.filter_scrollbar.winfo_ismapped():
+                    self.filter_scrollbar.pack_forget()
+                self._unbind_mousewheel(self.filter_canvas)
+            else:
+                # Hiện scrollbar
+                if not self.filter_scrollbar.winfo_ismapped():
+                    self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
+                # Bật scroll cho canvas
+                self._activate_mousewheel(self.filter_canvas)
+
 
     def apply_filters(self):
         filtered_df = self.df.copy()
