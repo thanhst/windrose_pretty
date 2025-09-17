@@ -39,22 +39,22 @@ class WindroseGUI:
         mid_frame = ttk.Frame(root)
         mid_frame.pack(fill="x", padx=10, pady=10)
 
-        ttk.Label(mid_frame, text="Chọn cột hướng gió:").grid(row=0, column=0, sticky="w")
-        ttk.Label(mid_frame, text="Chọn cột tốc độ gió:").grid(row=0, column=2, sticky="w")
+        frame_direction_v = ttk.Frame(mid_frame)
+        frame_direction_v.grid(row=0,column=0, columnspan=3, sticky="ew")
 
         self.direction_var = tk.StringVar()
         self.speed_var = tk.StringVar()
 
-        self.direction_combo = ttk.Combobox(mid_frame, textvariable=self.direction_var, state="readonly")
-        self.direction_combo.grid(row=1, column=0, padx=5, sticky="ew")
+        # self.direction_combo = ttk.Combobox(mid_frame, textvariable=self.direction_var, state="readonly")
+        # self.direction_combo.grid(row=1, column=0, padx=5, sticky="ew")
 
-        self.speed_combo = ttk.Combobox(mid_frame, textvariable=self.speed_var, state="readonly")
-        self.speed_combo.grid(row=1, column=2, padx=5, sticky="ew")
+        # self.speed_combo = ttk.Combobox(mid_frame, textvariable=self.speed_var, state="readonly")
+        # self.speed_combo.grid(row=1, column=2, padx=5, sticky="ew")
 
         self.add_filter_btn = ttk.Button(mid_frame, text="Thêm Bộ Lọc", command=self.add_filter)
         self.add_filter_btn.grid(row=2, column=0, pady=10, sticky="w")
 
-        self.plot_btn = ttk.Button(mid_frame, text="Vẽ Hoa Gió", command=self.plot_windrose)
+        self.plot_btn = ttk.Button(mid_frame, text="Vẽ Hoa Gió", command=self.plot_windrose, width=20,padding=10)
         self.plot_btn.grid(row=2, column=2, pady=10, sticky="e")
 
         mid_frame.grid_columnconfigure(0, weight=1)
@@ -75,16 +75,98 @@ class WindroseGUI:
         self.filter_area = tk.Frame(self.filter_canvas)
         self.filter_canvas.create_window((0, 0), window=self.filter_area, anchor="nw")
 
+
+
+        wind_frame = ttk.LabelFrame(frame_direction_v, text="Hướng")
+        wind_frame.pack(fill="x", padx=10, pady=10)
+
+        self.wind_canvas = tk.Canvas(wind_frame, height=50)
+        self.wind_canvas.pack(side=tk.LEFT, fill="both", expand=True)
+
+        self.wind_scrollbar = ttk.Scrollbar(wind_frame, orient="vertical", command=self.wind_canvas.yview)
+        self.wind_scrollbar.pack(side=tk.RIGHT, fill="y")
+
+        self.wind_canvas.configure(yscrollcommand=self.wind_scrollbar.set)
+        self.wind_area = tk.Frame(self.wind_canvas)
+        self.wind_canvas.create_window((0,0), window=self.wind_area, anchor="nw")
+
+        speed_frame = ttk.LabelFrame(frame_direction_v, text="Vận tốc gió")
+        speed_frame.pack(fill="x", padx=10, pady=10)
+
+        self.speed_canvas = tk.Canvas(speed_frame, height=50)
+        self.speed_canvas.pack(side=tk.LEFT, fill="both", expand=True)
+
+        self.speed_scrollbar = ttk.Scrollbar(speed_frame, orient="vertical", command=self.speed_canvas.yview)
+        self.speed_scrollbar.pack(side=tk.RIGHT, fill="y")
+
+        self.speed_canvas.configure(yscrollcommand=self.speed_scrollbar.set)
+        self.speed_area = tk.Frame(self.speed_canvas)
+        self.speed_canvas.create_window((0,0), window=self.speed_area, anchor="nw")
+
         # Kích hoạt con lăn chuột và scrollbar
-        self.filter_area.bind("<Enter>", lambda e: self._bind_mousewheel(self.filter_canvas))
-        self.filter_area.bind("<Leave>", lambda e: self._unbind_mousewheel(self.filter_canvas))
-        self.filter_canvas.bind('<Configure>', self._on_canvas_configure)
+        # self.filter_area.bind("<Enter>", lambda e: self._bind_mousewheel(self.filter_canvas))
+        # self.filter_area.bind("<Leave>", lambda e: self._unbind_mousewheel(self.filter_canvas))
+        # self.filter_canvas.bind('<Configure>', self._on_canvas_configure)
 
-        bottom_frame = ttk.LabelFrame(root, text="Windrose Visualization")
-        bottom_frame.pack(fill="both", expand=True, padx=10, pady=10)
+    def add_speed_item(self, value):
+        frame = ttk.Frame(self.speed_area)
+        frame.pack(fill="x", pady=2)
 
-        self.plot_area = tk.Frame(bottom_frame)
-        self.plot_area.pack(fill="both", expand=True)
+        label = ttk.Label(frame, text=f"{value}")
+        label.pack(side=tk.LEFT, padx=5)
+
+        remove_btn = ttk.Button(frame, text="Xóa", 
+                                command=lambda: self.remove_speed_item(frame))
+        remove_btn.pack(side=tk.RIGHT, padx=5)
+
+        if not hasattr(self, "speed_items"):
+            self.speed_items = []
+        self.speed_items.append({
+            "value": value,
+            "frame": frame
+        })
+
+        self._update_speed_scrollbar()
+
+    def remove_speed_item(self, frame):
+        frame.destroy()
+        self.speed_items = [s for s in self.speed_items if s["frame"] != frame]
+        self._update_speed_scrollbar()
+
+    def _update_speed_scrollbar(self):
+        self.speed_canvas.update_idletasks()
+        self.speed_canvas.configure(scrollregion=self.speed_canvas.bbox("all"))
+
+
+
+    def add_wind_item(self, value):
+        frame = ttk.Frame(self.wind_area)
+        frame.pack(fill="x", pady=2)
+
+        label = ttk.Label(frame, text=f"{value}")
+        label.pack(side=tk.LEFT, padx=5)
+
+        remove_btn = ttk.Button(frame, text="Xóa", 
+                                command=lambda: self.remove_wind_item(frame))
+        remove_btn.pack(side=tk.RIGHT, padx=5)
+
+        if not hasattr(self, "wind_items"):
+            self.wind_items = []
+        self.wind_items.append({
+            "value": value,
+            "frame": frame
+        })
+
+        self._update_wind_scrollbar()
+
+    def remove_wind_item(self, frame):
+        frame.destroy()
+        self.wind_items = [w for w in self.wind_items if w["frame"] != frame]
+        self._update_wind_scrollbar()
+
+    def _update_wind_scrollbar(self):
+        self.wind_canvas.update_idletasks()
+        self.wind_canvas.configure(scrollregion=self.wind_canvas.bbox("all"))
 
     def detect_direction_speed_columns(self, columns):
         # Từ khóa cho hướng gió và vận tốc (cả tiếng Anh & Việt)
@@ -95,6 +177,12 @@ class WindroseGUI:
             kw.lower() in col.lower() for kw in direction_keywords) or col.lower().startswith("hướng")]
         speed_cols = [col for col in columns if any(
             kw.lower() in col.lower() for kw in speed_keywords) or col.lower().startswith("v")]
+        
+        for d in direction_cols:
+            self.add_wind_item(d)
+
+        for s in speed_cols:  # speed_cols lấy từ detect_direction_speed_columns
+            self.add_speed_item(s)
 
         return direction_cols, speed_cols
 
@@ -114,8 +202,8 @@ class WindroseGUI:
             cols = list(self.df.columns)
             direction_cols, speed_cols = self.detect_direction_speed_columns(cols)
             # Chỉ hiển thị các cột hướng ở combobox hướng
-            self.direction_combo["values"] = direction_cols if direction_cols else cols
-            self.speed_combo["values"] = speed_cols if speed_cols else cols
+            # self.direction_combo["values"] = direction_cols if direction_cols else cols
+            # self.speed_combo["values"] = speed_cols if speed_cols else cols
 
             # Update bảng dữ liệu
             self.update_tree()
@@ -147,13 +235,13 @@ class WindroseGUI:
                 if self.filter_scrollbar.winfo_ismapped():
                     self.filter_scrollbar.pack_forget()
                 # Tắt cuộn
-                self.filter_canvas.unbind("<MouseWheel>")
+                self._unbind_mousewheel(self.filter_canvas)
             else:
                 # Hiện scrollbar
                 if not self.filter_scrollbar.winfo_ismapped():
                     self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
                 # Bật cuộn cho canvas, chỉ canvas thôi
-                self.filter_canvas.bind("<MouseWheel>", self._on_mousewheel)
+                self._bind_mousewheel(self.filter_canvas)
 
 
     def _bind_mousewheel(self, widget):
@@ -161,7 +249,7 @@ class WindroseGUI:
         widget.bind("<Leave>", lambda e: self._deactivate_mousewheel(widget))
 
     def _activate_mousewheel(self, widget, event=None):
-        widget.bind("<MouseWheel>", partial(self._on_mousewheel, widget))
+        widget.bind("<MouseWheel>", lambda e: self._on_mousewheel(widget, e))
 
     def _deactivate_mousewheel(self, widget, event=None):
         widget.unbind("<MouseWheel>")
