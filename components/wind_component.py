@@ -10,19 +10,27 @@ class Wind_component:
         self.wind_area = wind_area
         self.scoller = scroll_event()
         self.scollbar = scollbar
-        
+        self.style = ttk.Style()
+        self.style.configure("Card.TFrame", background="#f9f9f9", padding=10)  # padding nội bộ
+
+
     def add_wind_item(self, value):
-        frame = ttk.Frame(self.wind_area)
-        frame.pack(fill="x", pady=2)
-        direction_combo = ttk.Label(frame, text=value)
-        direction_combo.pack(side=tk.LEFT, padx=10)
+        if not hasattr(self, "wind_items"):
+            self.wind_items = []
+        index = len(self.wind_items)
+        max_cols = 4
+        row = index // max_cols
+        col = index % max_cols
+        
+        frame = ttk.LabelFrame(self.wind_area, text=value)
+        frame.grid(row=row, column=col, padx=8, pady=8, sticky="ew")
+
+        self.wind_area.grid_columnconfigure(col, weight=1)
 
         remove_btn = ttk.Button(frame, text="Xóa",
                                 command=lambda: self.remove_wind_item(frame))
         remove_btn.pack(side=tk.RIGHT, padx=5)
 
-        if not hasattr(self, "wind_items"):
-            self.wind_items = []
         self.wind_items.append({
             "value": value,
             "frame": frame

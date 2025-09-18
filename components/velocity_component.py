@@ -9,20 +9,25 @@ class Velocity_component:
         self.speed_area = speed_area
         self.scroller = scroll_event()
         self.scrollbar = scrollbar
+
         
     def add_speed_item(self, value):
-        frame = ttk.Frame(self.speed_area)
-        frame.pack(fill="x", pady=2)
+        if not hasattr(self, "speed_items"):
+            self.speed_items = []
+        index = len(self.speed_items)
+        max_cols = 4
+        row = index // max_cols
+        col = index % max_cols
         
-        speed_combo = ttk.Label(frame, text=value)
-        speed_combo.pack(side=tk.LEFT, padx=10)
+        frame = ttk.LabelFrame(self.speed_area, text=value)
+        frame.grid(row=row, column=col, padx=8, pady=8, sticky="ew")
+                
+        self.speed_area.grid_columnconfigure(col, weight=1)
 
         remove_btn = ttk.Button(frame, text="Xóa", 
                                 command=lambda: self.remove_speed_item(frame))
         remove_btn.pack(side=tk.RIGHT, padx=5)
 
-        if not hasattr(self, "speed_items"):
-            self.speed_items = []
         self.speed_items.append({
             "value": value,
             "frame": frame

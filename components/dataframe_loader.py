@@ -56,6 +56,15 @@ class DataFrameLoader:
         return direction_cols, speed_cols
     
     def update_direction_speed(self):
+        if(self.df is None):
+            messagebox.showwarning("Cảnh báo", "Vui lòng load file dữ liệu trước!")
+            return
+        self.WindComponent.wind_items = []
+        self.SpeedComponent.speed_items = []
+        for child in self.WindComponent.wind_area.winfo_children():
+            child.destroy()
+        for child in self.SpeedComponent.speed_area.winfo_children():
+            child.destroy()
         direction_cols, speed_cols = self.detect_direction_speed_columns(list(self.df.columns))
         for d in direction_cols:
             self.WindComponent.add_wind_item(d)
