@@ -11,6 +11,9 @@ from components.filter_component import Filter_component
 from components.wind_component import Wind_component
 from components.velocity_component import Velocity_component
 import numpy as np
+from tkinter import PhotoImage
+import sys, os
+
 
 device_name = socket.gethostname()
 print("Device name:", device_name)
@@ -21,6 +24,8 @@ if device_name == "R734":
     print("Máy này là máy của Huyền này 🚀")
 if device_name == "Thanh-Laptop":
     print("Máy này là máy của Thanh này 🚀")
+
+
 
 class WindroseGUI:
     def __init__(self, root):
@@ -262,7 +267,7 @@ class WindroseGUI:
         new_window_table.resizable(True, True)
 
         tree = ttk.Treeview(new_window_table)
-        columns = ["Vận tốc"] + df_counts.columns.tolist()
+        columns = ["Tốc độ gió"] + df_counts.columns.tolist()
         tree['columns'] = columns
         tree['show'] = 'headings'
 
@@ -328,7 +333,7 @@ class WindroseGUI:
 
 def open_extra_window(root):
     from PIL import Image, ImageTk, ImageDraw, ImageFont
-    bg_img = Image.open("./public/img/anh1.jpg").resize((400,300))
+    bg_img = Image.open(resource_path(os.path.join("public", "img","anh1.jpg"))).resize((400,300))
     
     draw = ImageDraw.Draw(bg_img)
     font = ImageFont.truetype("arial.ttf", 24)  # bạn có thể đổi font
@@ -350,12 +355,28 @@ def open_extra_window(root):
     extra_win.transient(root)   # luôn nổi trên root
     extra_win.protocol("WM_DELETE_WINDOW", extra_win.destroy)
 
+def resource_path(relative_path):
+    """Trả về path đúng khi chạy .py hoặc .exe"""
+    if hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
 if __name__ == "__main__":
     root = tk.Tk()
+    # try:
+    #     root.iconbitmap("./icon/icon.png")
+    # except:
+    #     icon = PhotoImage(file="./icon/icon.png")
+    #     root.iconphoto(True, icon)
     if device_name == "R734":
+        icon = PhotoImage(file=resource_path(os.path.join("icon", "icon_user.png")))
+        root.iconphoto(True, icon)
         open_extra_window(root)
-    if device_name == "Thanh-Laptop":
+    elif device_name == "Thanh-Laptop":
         open_extra_window(root)
+    else:
+        icon = PhotoImage(file=resource_path(os.path.join("icon", "icon.png")))
+        root.iconphoto(True, icon)
         
     app = WindroseGUI(root)
 
