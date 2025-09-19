@@ -34,7 +34,9 @@ class WindroseGUI:
         self.root.geometry(f"{int(root.winfo_screenwidth()*0.85)}x{int(root.winfo_screenheight()*0.85)}")
         self.root.state("zoomed")
         root.columnconfigure(0, weight=1)
-
+        style = ttk.Style()
+        style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
+        style.configure("Treeview", font=("Arial", 10), rowheight=30) 
         
         self.filters = []
 
@@ -236,6 +238,7 @@ class WindroseGUI:
                 cmap=plt.cm.jet,
                 calm_limit = calm_limit,
                 nsector=16,
+                sectoroffset = 90
             )
             
 
@@ -263,7 +266,7 @@ class WindroseGUI:
         df_counts = self.get_frequency_table(all_directions, all_speeds, bins, nsector=16, calm_limit=calm_limit)
         new_window_table = tk.Toplevel(self.root)
         new_window_table.title("Biểu đồ tần suất gió")
-        new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.8)}")
+        new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}")
         new_window_table.resizable(True, True)
 
         tree = ttk.Treeview(new_window_table)
@@ -271,10 +274,13 @@ class WindroseGUI:
         tree['columns'] = columns
         tree['show'] = 'headings'
 
+        # Customize style
+        #  # rowheight lớn hơn
+
         # headers
         for col in columns:
             tree.heading(col, text=col)
-            tree.column(col, width=60, anchor='center')
+            tree.column(col, width=60, anchor='center')  # rộng hơn
 
         # rows
         for idx in df_counts.index:
