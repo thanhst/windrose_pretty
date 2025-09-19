@@ -226,7 +226,6 @@ class WindroseGUI:
                 except Exception as e:
                     messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}")
                     return
-            
             ax.bar(
                 directions ,
                 speeds,
@@ -238,7 +237,7 @@ class WindroseGUI:
                 cmap=plt.cm.jet,
                 calm_limit = calm_limit,
                 nsector=16,
-                sectoroffset = 90
+                sectoroffset = 0
             )
             
 
