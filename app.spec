@@ -12,7 +12,6 @@ a = Analysis(
     runtime_hooks=[],
     excludes=['torch', 'torchvision', 'sqlite3', 'win32com', 'scipy', 'sklearn', 'tensorflow'],
     noarchive=False,
-    optimize=0,
 )
 pyz = PYZ(a.pure)
 
