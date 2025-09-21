@@ -13,8 +13,9 @@ from components.velocity_component import Velocity_component
 import numpy as np
 from tkinter import PhotoImage
 import sys, os
-from helper import circle_crop,round_corners, RainbowCircle
-
+from helper.helper import circle_crop,round_corners, RainbowCircle, resource_path
+from helper.config import getConfig,getConfigPath
+import json
 
 device_name = socket.gethostname()
 print("Device name:", device_name)
@@ -354,31 +355,27 @@ class WindroseGUI:
         return df_counts
     
     def toggle_pretty(self):
-        if getConfig()==False:
+        current = getConfig()  # ✅ True/False
+        config_path = getConfigPath()
+
+        if current is False:
+            # Bật "xinh đẹp"
             self.set_up_btn.config(text="Tắt sự xinh đẹp khi vào nha!")
-            with open(resource_path(os.path.join("public","config","config.txt")), "w", encoding="utf-8") as f:
-                f.write(f"isPretty={'true'}")
+            new_config = {
+                "isPretty": True,
+                "version": "1.0"
+            }
         else:
+            # Tắt "xinh đẹp"
             self.set_up_btn.config(text="Bật sự xinh đẹp khi vào nè!")
-            with open(resource_path(os.path.join("public","config","config.txt")), "w", encoding="utf-8") as f:
-                f.write(f"isPretty={'false'}")
+            new_config = {
+                "isPretty": False,
+                "version": "1.0"
+            }
+
+        with open(config_path, "w", encoding="utf-8") as f:
+            json.dump(new_config, f, indent=4, ensure_ascii=False)
     
-def getConfig():
-    config = {}
-    try:
-        with open(resource_path(os.path.join("public","config","config.txt")), "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#"):  # bỏ dòng trống / comment
-                    continue
-                if "=" in line:
-                    key, value = line.split("=", 1)
-                    config[key.strip()] = value.strip()
-    except FileNotFoundError:
-        print("⚠️ File config.txt không tồn tại.")
-    
-    is_pretty = config.get("isPretty", "false").lower() in ("true", "1", "yes")
-    return is_pretty
 
 
 def open_extra_window(root):
@@ -426,11 +423,6 @@ def open_extra_window(root):
     extra_win.transient(root)   # luôn nổi trên root
     extra_win.protocol("WM_DELETE_WINDOW", extra_win.destroy)
 
-def resource_path(relative_path):
-    """Trả về path đúng khi chạy .py hoặc .exe"""
-    if hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
 
 if __name__ == "__main__":
     root = tk.Tk()
