@@ -31,11 +31,8 @@ if device_name == "Thanh-Laptop":
 
 class WindroseGUI:
     def __init__(self, root):
-        self.root = root
-        self.root.title("Windrose Data Explorer")
-        self.root.geometry(f"{int(root.winfo_screenwidth()*0.85)}x{int(root.winfo_screenheight()*0.85)}")
-        self.root.state("zoomed")
-        root.columnconfigure(0, weight=1)
+        self.root= root
+        self.root.columnconfigure(0, weight=1)
         style = ttk.Style()
         style.configure("Treeview.Heading", font=("Arial", 10, "bold"))
         style.configure("Treeview", font=("Arial", 10), rowheight=30) 
@@ -133,14 +130,15 @@ class WindroseGUI:
 
         self.load_dir_speed_btn = ttk.Button(left_frame, text="Load Direction and Velocity", command=self.dataLoader.update_direction_speed)
         self.load_dir_speed_btn.pack(pady=5, anchor="w", fill="x")
-
-        if getConfig():
-            text_pretty = "Tắt sự xinh đẹp khi vào nha!"
-        else:
-            text_pretty = "Bật sự xinh đẹp khi vào nha!"
-
-        self.set_up_btn = ttk.Button(right_frame, text=text_pretty, command=self.toggle_pretty)
-        self.set_up_btn.pack(pady=20)
+        
+        if device_name == "R734" or device_name == "Thanh-Laptop":
+            if getConfig():
+                text_pretty = "Tắt sự xinh đẹp khi vào nha!"
+            else:
+                text_pretty = "Bật sự xinh đẹp khi vào nha!"
+            
+            self.set_up_btn = ttk.Button(right_frame, text=text_pretty, command=self.toggle_pretty)
+            self.set_up_btn.pack(pady=20)
         
         self.filter = Filter_component(root,self.filter_canvas,self.filter_area,self.filter_scrollbar,self.dataLoader)
 
@@ -426,6 +424,32 @@ def open_extra_window(root):
 
 if __name__ == "__main__":
     root = tk.Tk()
+    root.title("Windrose Data Explorer")
+    root.geometry(f"{int(root.winfo_screenwidth()*0.85)}x{int(root.winfo_screenheight()*0.85)}")
+    root.state("zoomed")
+    # --- tạo canvas có scrollbar bọc toàn bộ ---
+    
+    main_canvas = tk.Canvas(root,background="black")
+    main_canvas.pack(side="left",fill="both", expand=True)
+
+    scrollbar = ttk.Scrollbar(root, orient="vertical", command=main_canvas.yview)
+    scrollbar.pack(side="right", fill="y")
+    main_canvas.configure(yscrollcommand=scrollbar.set)
+
+    container = tk.Frame(main_canvas)
+    container_id = main_canvas.create_window((0, 0), window=container, anchor="nw")
+    
+    def on_configure(event):
+        main_canvas.configure(scrollregion=main_canvas.bbox("all"))
+        main_canvas.itemconfig(container_id, width=event.width)  # ép container luôn full width
+
+    container.bind("<Configure>", on_configure)
+    main_canvas.bind("<Configure>", on_configure)  # khi canvas resize thì container cũng resize
+
+    # cuộn bằng con lăn chuột
+    def _on_mousewheel(event):
+        main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+    main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
     # try:
     #     root.iconbitmap("./icon/icon.png")
     # except:
@@ -442,7 +466,7 @@ if __name__ == "__main__":
     else:
         icon = PhotoImage(file=resource_path(os.path.join("icon", "icon.png")))
         root.iconphoto(True, icon)
-        
-    app = WindroseGUI(root)
+
+    app = WindroseGUI(container)
 
     root.mainloop()

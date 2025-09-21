@@ -4,7 +4,7 @@ import json
 def getConfigPath():
     """
     Lấy đường dẫn file config trong AppData.
-    Ví dụ: C:\Users\<User>\AppData\Roaming\windrose_app\config.json
+    Ví dụ: C:/Users/<User>\AppData\Roaming\windrose_app\config.json
     """
     appdata = os.getenv("APPDATA")  # Thư mục AppData\Roaming
     config_dir = os.path.join(appdata, "windrose_app")
