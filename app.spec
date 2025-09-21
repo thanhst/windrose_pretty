@@ -32,7 +32,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='D:\\code\\pretty\\windrose_pretty\\icon\\icon.ico',
+    icon='icon\\icon.ico',
 )
 coll = COLLECT(
     exe,

@@ -13,6 +13,7 @@ from components.velocity_component import Velocity_component
 import numpy as np
 from tkinter import PhotoImage
 import sys, os
+from helper import circle_crop,round_corners, RainbowCircle
 
 
 device_name = socket.gethostname()
@@ -120,11 +121,25 @@ class WindroseGUI:
         fram_load.pack(fill="both", pady=5)
         
         self.dataLoader = DataFrameLoader(fram_load,self.tree,self.windcom,self.speedcom)
-        self.load_btn = ttk.Button(fram_load, text="Load File", command=self.dataLoader.load_file)
-        self.load_btn.pack(side="left",padx=5)
-        
-        self.load_dir_speed_btn = ttk.Button(fram_load, text="Load Direction and Velocity", command=self.dataLoader.update_direction_speed)
-        self.load_dir_speed_btn.pack(side="right",padx=5)
+        left_frame = tk.Frame(fram_load)
+        left_frame.pack(side="left", padx=5)
+
+        right_frame = tk.Frame(fram_load)
+        right_frame.pack(side="right", padx=5)
+
+        self.load_btn = ttk.Button(left_frame, text="Load File", command=self.dataLoader.load_file)
+        self.load_btn.pack(pady=5, anchor="w", fill="x")
+
+        self.load_dir_speed_btn = ttk.Button(left_frame, text="Load Direction and Velocity", command=self.dataLoader.update_direction_speed)
+        self.load_dir_speed_btn.pack(pady=5, anchor="w", fill="x")
+
+        if getConfig():
+            text_pretty = "Tắt sự xinh đẹp khi vào nha!"
+        else:
+            text_pretty = "Bật sự xinh đẹp khi vào nha!"
+
+        self.set_up_btn = ttk.Button(right_frame, text=text_pretty, command=self.toggle_pretty)
+        self.set_up_btn.pack(pady=20)
         
         self.filter = Filter_component(root,self.filter_canvas,self.filter_area,self.filter_scrollbar,self.dataLoader)
 
@@ -140,6 +155,8 @@ class WindroseGUI:
         self.calm_entry = ttk.Entry(mid_frame)
         self.calm_entry.grid(row=3, column=4, sticky="ew", padx=100, pady=2)
         self.calm_entry.insert(0, "None")
+        
+        
         
     def _on_canvas_configure(self, event):
         self.filter_canvas.configure(scrollregion=self.filter_canvas.bbox("all"))
@@ -288,6 +305,7 @@ class WindroseGUI:
 
         tree.pack(fill=tk.BOTH, expand=True)
 
+
     def get_frequency_table(self, directions, speeds, bins, nsector=16, calm_limit=None):
         import numpy as np
         import pandas as pd
@@ -334,27 +352,75 @@ class WindroseGUI:
         df_counts = df_counts.T
 
         return df_counts
+    
+    def toggle_pretty(self):
+        if getConfig()==False:
+            self.set_up_btn.config(text="Tắt sự xinh đẹp khi vào nha!")
+            with open(resource_path(os.path.join("public","config","config.txt")), "w", encoding="utf-8") as f:
+                f.write(f"isPretty={'true'}")
+        else:
+            self.set_up_btn.config(text="Bật sự xinh đẹp khi vào nè!")
+            with open(resource_path(os.path.join("public","config","config.txt")), "w", encoding="utf-8") as f:
+                f.write(f"isPretty={'false'}")
+    
+def getConfig():
+    config = {}
+    try:
+        with open(resource_path(os.path.join("public","config","config.txt")), "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):  # bỏ dòng trống / comment
+                    continue
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    config[key.strip()] = value.strip()
+    except FileNotFoundError:
+        print("⚠️ File config.txt không tồn tại.")
+    
+    is_pretty = config.get("isPretty", "false").lower() in ("true", "1", "yes")
+    return is_pretty
 
 
 def open_extra_window(root):
     from PIL import Image, ImageTk, ImageDraw, ImageFont
-    bg_img = Image.open(resource_path(os.path.join("public", "img","anh1.jpg"))).resize((400,300))
-    
-    draw = ImageDraw.Draw(bg_img)
-    font = ImageFont.truetype("arial.ttf", 24)  # bạn có thể đổi font
-    draw.text((50, 50), "Ngầu lòi nè!", fill="yellow", font=font)
-    
-    tk_img = ImageTk.PhotoImage(bg_img)
-    
     extra_win = tk.Toplevel(root)
     extra_win.title("Extra Window")
     extra_win.geometry(f"{int(root.winfo_screenwidth()*0.85)}x{int(root.winfo_screenheight()*0.85)}")
     extra_win.state("zoomed")
-    extra_win.after(5000, extra_win.destroy)
-    label = tk.Label(extra_win, image=tk_img)
-    label.image = tk_img
-    label.pack()
+    extra_win.configure(bg="#ffe6f0") 
+    extra_win.after(15000, extra_win.destroy)
+
+    # Frame để chứa 2 ảnh cạnh nhau
+    frame = tk.Frame(extra_win, bg="#ffe6f0")
+    frame.pack(expand=True, fill="both", padx=20, pady=20)
+
+    # Ảnh bên trái (vuông bo góc)
+    left_img = Image.open(resource_path(os.path.join("public", "img", "image.png"))).resize((int(root.winfo_screenwidth()*0.2), int(root.winfo_screenwidth()*0.2)))
+    left_img = round_corners(left_img, radius=50)
+    left_tk = ImageTk.PhotoImage(left_img)
+
+    left_frame = tk.Frame(frame, bg="#ffe6f0")
+    left_frame.pack(side="left", expand=True, padx=20)
+    left_label = tk.Label(left_frame, image=left_tk, bg="#ffe6f0")
+    left_label.image = left_tk
+    left_label.pack()
+    tk.Label(left_frame, text="Tặng hoa để người đẹp nhất vũ trụ bất tử", fg="black", bg="#ffe6f0", font=("Arial", 16)).pack(pady=10)
+
+    # Ảnh bên phải (tròn)
+    right_frame = tk.Frame(frame, bg="#ffe6f0")
+    right_frame.pack(side="right", expand=True, padx=20)
     
+    rainbow = RainbowCircle(
+        right_frame,
+        resource_path(os.path.join("public", "img", "pretty.png")),
+        size=int(root.winfo_screenwidth()*0.3),
+        border_width=20,
+        bg="#ffe6f0"
+    )
+    rainbow.pack()
+    
+    tk.Label(right_frame, text="Ái tà, ai mà xinh thế?? Người đẹp nhất vũ trụ chứ ai!!!", fg="black", bg="#ffe6f0", font=("Arial", 14)).pack(pady=10)
+
     extra_win.lift()
     extra_win.focus_force()
     extra_win.transient(root)   # luôn nổi trên root
@@ -373,11 +439,13 @@ if __name__ == "__main__":
     # except:
     #     icon = PhotoImage(file="./icon/icon.png")
     #     root.iconphoto(True, icon)
-    if device_name == "R734":
+    if device_name == "R734" and getConfig()==True:
         icon = PhotoImage(file=resource_path(os.path.join("icon", "icon_user.png")))
         root.iconphoto(True, icon)
         open_extra_window(root)
-    elif device_name == "Thanh-Laptop":
+    elif device_name == "Thanh-Laptop" and getConfig()==True:
+        icon = PhotoImage(file=resource_path(os.path.join("icon", "icon_user.png")))
+        root.iconphoto(True, icon)
         open_extra_window(root)
     else:
         icon = PhotoImage(file=resource_path(os.path.join("icon", "icon.png")))

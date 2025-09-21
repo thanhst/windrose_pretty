@@ -61,5 +61,7 @@ begin
   end;
 end;
 
+[Run]
+Filename: "{app}\app.exe"; Flags: nowait skipifsilent
 
 
