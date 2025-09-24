@@ -241,7 +241,8 @@ class WindroseGUI:
                 return 
         non_calm = wind_df[wind_df["spd"] > calm_limit] 
         non_calm.to_csv("wind_non_calm_lib.csv", index=False, encoding="utf-8-sig") 
-        ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=calm_limit, nsector=16, sectoroffset=0 ) # --- tính calm wind cho toàn bộ --- 
+        ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=calm_limit, nsector=16, sectoroffset=0 ) 
+        # --- tính calm wind cho toàn bộ --- 
         total_speeds = pd.Series(total_speeds) 
         calm_count = (total_speeds <= calm_limit).sum() 
         calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0 
@@ -249,7 +250,12 @@ class WindroseGUI:
                       loc='lower right', # anchor point là góc dưới trái của legend 
                       bbox_to_anchor=(0, 0), # (x, y) vị trí ngoài chart 
                       fontsize=8, ) 
-        fig.text(0.5, 0.05, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10) 
+        labels_dir = ["E","ENE","NE","NNE","N","NNW","NW","WNW","W","WSW","SW","SSW","S","SSE","SE","ESE"]
+        angles = np.deg2rad(np.arange(0,360,360/16)) # 16 hướng 
+        ax.set_xticks(angles) 
+        ax.set_xticklabels(labels_dir)
+        ax.tick_params(pad=15)
+        fig.text(0.5, 0.02, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10) 
         new_window = tk.Toplevel(self.root) 
         new_window.title("Windrose Chart") 
         new_window.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.8)}") 
