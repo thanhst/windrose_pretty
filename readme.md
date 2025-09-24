@@ -23,5 +23,10 @@ pyinstaller app.spec
 ```
 And, here it are. Your app is building to file .exe to use...
 But, see the section 2. =))))
+
+
 2. Don't build, because I already build a file .exe !!
+- The file .exe in Ouput. Hehe, you just got trolled!
+
+
 3. Hehe see you a later!
