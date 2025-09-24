@@ -175,115 +175,94 @@ class WindroseGUI:
                     self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
                 # Bật cuộn cho canvas, chỉ canvas thôi
                 self.scroller._bind_mousewheel(self.filter_canvas)
-
-    def plot_windrose(self):
-        import numpy as np
-        if self.dataLoader.df is None:
-            messagebox.showwarning("Không có dữ liệu", "Hãy load dữ liệu trước khi vẽ biểu đồ!")
-            return
-
-        direction_cols = self.windcom.get_selected_columns()
-        speed_cols = self.speedcom.get_selected_columns()
-
-        if not direction_cols or not speed_cols:
-            messagebox.showwarning("Chưa chọn", "Hãy chọn ít nhất một cột hướng gió và tốc độ gió!")
-            return
-
-        filtered_df = self.filter.apply_filters()
-        if filtered_df.empty:
-            messagebox.showwarning("Không có dữ liệu", "Không có dữ liệu sau khi áp dụng bộ lọc!")
-            return
-
-        fig = plt.Figure(figsize=(6, 6), dpi=100)
-        ax = WindroseAxes.from_ax(fig=fig)
-
-        total_speeds = []
-        
-        all_directions = []
-        all_speeds = []
-        for d_col, s_col in zip(direction_cols, speed_cols):
-            if d_col not in filtered_df.columns or s_col not in filtered_df.columns:
-                continue
-
-            directions = filtered_df[d_col].dropna().astype(float)
-
-            if directions.max() <= 36:
-                directions = directions * 10
-            directions = directions % 360
-            speeds = filtered_df[s_col].dropna().astype(float)
-            
-            all_directions.append(directions)
-            all_speeds.append(speeds)
-            
-            if directions.empty or speeds.empty:
-                continue
-
-            total_speeds.extend(speeds.tolist())
-            
-            try:
-                bins_str = self.bins_entry.get()
-                bins = [float(b.strip()) for b in bins_str.split(",")]
-                self.bins_entry.delete(0, tk.END)
-                self.bins_entry.insert(0, ",".join(str(int(x)) for x in bins))
-            except Exception as e:
-                messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}")
-                return
-            
-            calm_input = self.calm_entry.get().strip()
-            if calm_input.lower() == "none" or calm_input =="0":
-                calm_limit = None
-                if len(bins) == 0 or bins[0] != 0:
-                    bins = [0] + bins
-            else:
-                try:
-                    calm_limit = float(calm_input)
-                    bins = [b for b in bins if b > calm_limit]
-                    bins_str
-                except Exception as e:
-                    messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}")
-                    return
-            ax.bar(
-                directions ,
-                speeds,
-                normed=True,
-                opening=1,
-                edgecolor="white",
-                bins=bins,
-                label=f"{d_col} vs {s_col}",
-                cmap=plt.cm.jet,
-                calm_limit = calm_limit,
-                nsector=16,
-                sectoroffset = 0
-            )
-            
-
-        # --- tính calm wind cho toàn bộ ---
-        total_speeds = pd.Series(total_speeds)
-        calm_count = (total_speeds <= 0.5).sum()
-        calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0
-        ax.set_legend(
-            title="Tốc độ gió (m/s)",
-            loc='lower right',           # anchor point là góc dưới trái của legend
-            bbox_to_anchor=(0, 0),  # (x, y) vị trí ngoài chart
-            fontsize=8,
-        )
-        fig.text(0.5, 0.05, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10)
-
-        new_window = tk.Toplevel(self.root)
-        new_window.title("Windrose Chart")
-        new_window.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.8)}")
-        canvas = FigureCanvasTkAgg(fig, master=new_window)
-        canvas.draw()
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
-        
-        all_directions = pd.concat(all_directions, ignore_index=True)
-        all_speeds = pd.concat(all_speeds, ignore_index=True)
-        df_counts = self.get_frequency_table(all_directions, all_speeds, bins, nsector=16, calm_limit=calm_limit)
-        new_window_table = tk.Toplevel(self.root)
-        new_window_table.title("Biểu đồ tần suất gió")
-        new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}")
-        new_window_table.resizable(True, True)
-
+    def plot_windrose(self): 
+        import numpy as np 
+        if self.dataLoader.df is None: 
+            messagebox.showwarning("Không có dữ liệu", "Hãy load dữ liệu trước khi vẽ biểu đồ!") 
+            return 
+        direction_cols = self.windcom.get_selected_columns() 
+        speed_cols = self.speedcom.get_selected_columns() 
+        if not direction_cols or not speed_cols: 
+            messagebox.showwarning("Chưa chọn", "Hãy chọn ít nhất một cột hướng gió và tốc độ gió!") 
+            return 
+        filtered_df = self.filter.apply_filters() 
+        if filtered_df.empty: 
+            messagebox.showwarning("Không có dữ liệu", "Không có dữ liệu sau khi áp dụng bộ lọc!") 
+            return 
+        fig = plt.Figure(figsize=(6, 6), dpi=100) 
+        ax = WindroseAxes.from_ax(fig=fig) 
+        total_speeds = [] 
+        all_directions = [] 
+        all_speeds = [] 
+        df_list = [] 
+        for d_col, s_col in zip(direction_cols, speed_cols): 
+            if d_col not in filtered_df.columns or s_col not in filtered_df.columns: 
+                continue 
+            tmp = filtered_df[[d_col, s_col]].dropna()  
+            # tmp = tmp[tmp[s_col] > 0] 
+            if tmp.empty: 
+                continue 
+            directions = tmp[d_col].astype(float) 
+            speeds = tmp[s_col].astype(float) 
+            tmp.columns = ["dir", "spd"] 
+            df_list.append(tmp) 
+            # directions = filtered_df[d_col].dropna().astype(float) 
+            # # speeds = filtered_df[s_col].dropna().astype(float) 
+            if directions.max() <= 36: 
+                directions = directions * 10 
+            all_directions.append(directions) 
+            all_speeds.append(speeds) 
+            if directions.empty or speeds.empty: 
+                continue 
+            total_speeds.extend(speeds.tolist()) 
+            wind_df = pd.concat(df_list, ignore_index=True) # Chuẩn hóa hướng 
+            if wind_df["dir"].max() <= 36: 
+                wind_df["dir"] = wind_df["dir"] * 10 
+        try: 
+            bins_str = self.bins_entry.get() 
+            bins = [float(b.strip()) for b in bins_str.split(",")] 
+            self.bins_entry.delete(0, tk.END) 
+            self.bins_entry.insert(0, ",".join(str(int(x)) for x in bins)) 
+        except Exception as e: 
+            messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}") 
+            return 
+        calm_input = self.calm_entry.get().strip() 
+        if calm_input.lower() == "none" or calm_input =="0": 
+            calm_limit = 0 
+            if len(bins) == 0 or bins[0] != 0: 
+                bins = [0] + bins 
+        else: 
+            try: 
+                calm_limit = float(calm_input) 
+                bins = [b for b in bins if b > calm_limit] 
+                bins_str 
+            except Exception as e: 
+                messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}") 
+                return 
+        non_calm = wind_df[wind_df["spd"] > calm_limit] 
+        non_calm.to_csv("wind_non_calm_lib.csv", index=False, encoding="utf-8-sig") 
+        ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=calm_limit, nsector=16, sectoroffset=0 ) # --- tính calm wind cho toàn bộ --- 
+        total_speeds = pd.Series(total_speeds) 
+        calm_count = (total_speeds <= calm_limit).sum() 
+        calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0 
+        ax.set_legend( title="Tốc độ gió (m/s)", 
+                      loc='lower right', # anchor point là góc dưới trái của legend 
+                      bbox_to_anchor=(0, 0), # (x, y) vị trí ngoài chart 
+                      fontsize=8, ) 
+        fig.text(0.5, 0.05, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10) 
+        new_window = tk.Toplevel(self.root) 
+        new_window.title("Windrose Chart") 
+        new_window.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.8)}") 
+        canvas = FigureCanvasTkAgg(fig, master=new_window) 
+        canvas.draw() 
+        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True) 
+        all_directions = pd.concat(all_directions, ignore_index=True) 
+        all_speeds = pd.concat(all_speeds, ignore_index=True) 
+        df_counts = self.get_frequency_table(all_directions, all_speeds, bins, nsector=16, calm_limit=calm_limit) 
+        new_window_table = tk.Toplevel(self.root) 
+        new_window_table.title("Biểu đồ tần suất gió") 
+        new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}") 
+        new_window_table.resizable(True, True) 
         tree = ttk.Treeview(new_window_table)
         columns = ["Tốc độ gió"] + df_counts.columns.tolist()
         tree['columns'] = columns
@@ -304,7 +283,6 @@ class WindroseGUI:
 
         tree.pack(fill=tk.BOTH, expand=True)
 
-
     def get_frequency_table(self, directions, speeds, bins, nsector=16, calm_limit=None):
         import numpy as np
         import pandas as pd
@@ -318,8 +296,10 @@ class WindroseGUI:
             directions = directions[mask]
             speeds = speeds[mask]
 
+        # half_sector = 360 / (2 * nsector)
+        # sector_edges = np.linspace(-half_sector, 360 - half_sector, nsector+1)
         half_sector = 360 / (2 * nsector)
-        sector_edges = np.linspace(-half_sector, 360 - half_sector, nsector+1)
+        sector_edges = np.linspace(-half_sector, 360-half_sector, nsector+1)
         # Chia sector + bin
         bin_edges = np.array(bins)
         freq_matrix = np.zeros((nsector, len(bin_edges)-1), dtype=int)
