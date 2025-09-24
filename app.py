@@ -318,8 +318,9 @@ class WindroseGUI:
             directions = directions[mask]
             speeds = speeds[mask]
 
+        half_sector = 360 / (2 * nsector)
+        sector_edges = np.linspace(-half_sector, 360 - half_sector, nsector+1)
         # Chia sector + bin
-        sector_edges = np.linspace(0, 360, nsector+1)
         bin_edges = np.array(bins)
         freq_matrix = np.zeros((nsector, len(bin_edges)-1), dtype=int)
 
