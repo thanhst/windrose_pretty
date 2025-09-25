@@ -201,16 +201,27 @@ class WindroseGUI:
         
         all_directions = []
         all_speeds = []
+        df_list = []
         for d_col, s_col in zip(direction_cols, speed_cols):
             if d_col not in filtered_df.columns or s_col not in filtered_df.columns:
                 continue
+            
+            tmp = filtered_df[[d_col, s_col]].dropna()
+            # tmp = tmp[tmp[s_col] > 0]
 
-            directions = filtered_df[d_col].dropna().astype(float)
+            if tmp.empty:
+                continue
+
+            directions = tmp[d_col].astype(float)
+            speeds = tmp[s_col].astype(float)
+            tmp.columns = ["dir", "spd"]
+            df_list.append(tmp)
+            
+            # directions = filtered_df[d_col].dropna().astype(float)
+            # speeds = filtered_df[s_col].dropna().astype(float)
 
             if directions.max() <= 36:
                 directions = directions * 10
-            directions = directions % 360
-            speeds = filtered_df[s_col].dropna().astype(float)
             
             all_directions.append(directions)
             all_speeds.append(speeds)
@@ -220,46 +231,53 @@ class WindroseGUI:
 
             total_speeds.extend(speeds.tolist())
             
+        wind_df = pd.concat(df_list, ignore_index=True)
+
+        # Chuẩn hóa hướng
+        if wind_df["dir"].max() <= 36:
+            wind_df["dir"] = wind_df["dir"] * 10
+        
+        try:
+            bins_str = self.bins_entry.get()
+            bins = [float(b.strip()) for b in bins_str.split(",")]
+            self.bins_entry.delete(0, tk.END)
+            self.bins_entry.insert(0, ",".join(str(int(x)) for x in bins))
+        except Exception as e:
+            messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}")
+            return
+        
+        calm_input = self.calm_entry.get().strip()
+        if calm_input.lower() == "none" or calm_input =="0":
+            calm_limit = 0
+            if len(bins) == 0 or bins[0] != 0:
+                bins = [0] + bins
+        else:
             try:
-                bins_str = self.bins_entry.get()
-                bins = [float(b.strip()) for b in bins_str.split(",")]
-                self.bins_entry.delete(0, tk.END)
-                self.bins_entry.insert(0, ",".join(str(int(x)) for x in bins))
+                calm_limit = float(calm_input)
+                bins = [b for b in bins if b > calm_limit]
+                bins_str
             except Exception as e:
-                messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}")
+                messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}")
                 return
             
-            calm_input = self.calm_entry.get().strip()
-            if calm_input.lower() == "none" or calm_input =="0":
-                calm_limit = None
-                if len(bins) == 0 or bins[0] != 0:
-                    bins = [0] + bins
-            else:
-                try:
-                    calm_limit = float(calm_input)
-                    bins = [b for b in bins if b > calm_limit]
-                    bins_str
-                except Exception as e:
-                    messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}")
-                    return
-            ax.bar(
-                directions ,
-                speeds,
-                normed=True,
-                opening=1,
-                edgecolor="white",
-                bins=bins,
-                label=f"{d_col} vs {s_col}",
-                cmap=plt.cm.jet,
-                calm_limit = calm_limit,
-                nsector=16,
-                sectoroffset = 0
-            )
-            
+        non_calm = wind_df[wind_df["spd"] > calm_limit]
+        non_calm.to_csv("wind_non_calm_lib.csv", index=False, encoding="utf-8-sig")
+        ax.bar(
+            non_calm["dir"],
+            non_calm["spd"],
+            bins=bins,
+            normed=True,
+            opening=1,
+            edgecolor="white",
+            cmap=plt.cm.jet,
+            calm_limit=calm_limit,
+            nsector=16,
+            sectoroffset=0
+        )
 
         # --- tính calm wind cho toàn bộ ---
         total_speeds = pd.Series(total_speeds)
-        calm_count = (total_speeds <= 0.5).sum()
+        calm_count = (total_speeds <= calm_limit).sum()
         calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0
         ax.set_legend(
             title="Tốc độ gió (m/s)",
@@ -267,7 +285,14 @@ class WindroseGUI:
             bbox_to_anchor=(0, 0),  # (x, y) vị trí ngoài chart
             fontsize=8,
         )
-        fig.text(0.5, 0.05, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10)
+        labels_dir = ["E", "ENE", "NE", "NNE", "N", "NNW", "NW", "WNW",
+                "W", "WSW", "SW", "SSW", "S", "SSE", "SE", "ESE"]
+
+        angles = np.deg2rad(np.arange(0,360,360/16))   # 16 hướng
+        ax.set_xticks(angles)
+        ax.set_xticklabels(labels_dir, fontsize=9)
+        ax.xaxis.set_tick_params(pad=15)
+        fig.text(0.5, 0.02, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10)
 
         new_window = tk.Toplevel(self.root)
         new_window.title("Windrose Chart")
@@ -304,7 +329,6 @@ class WindroseGUI:
 
         tree.pack(fill=tk.BOTH, expand=True)
 
-
     def get_frequency_table(self, directions, speeds, bins, nsector=16, calm_limit=None):
         import numpy as np
         import pandas as pd
@@ -318,16 +342,18 @@ class WindroseGUI:
             directions = directions[mask]
             speeds = speeds[mask]
 
-        # Chia sector + bin
-        sector_edges = np.linspace(0, 360, nsector+1)
-        bin_edges = np.array(bins)
-        freq_matrix = np.zeros((nsector, len(bin_edges)-1), dtype=int)
+        # Chia sector + bin (bin cuối gom cả ∞)
+        sector_edges = np.linspace(0, 360, nsector + 1)
+        bin_edges = np.array(bins + [np.inf])
+
+        # Tạo ma trận đếm
+        freq_matrix = np.zeros((nsector, len(bin_edges) - 1), dtype=int)
 
         for i in range(nsector):
-            sector_mask = (directions >= sector_edges[i]) & (directions < sector_edges[i+1])
+            sector_mask = (directions >= sector_edges[i]) & (directions < sector_edges[i + 1])
             sector_speeds = speeds[sector_mask]
-            for j in range(len(bin_edges)-1):
-                bin_mask = (sector_speeds >= bin_edges[j]) & (sector_speeds < bin_edges[j+1])
+            for j in range(len(bin_edges) - 1):
+                bin_mask = (sector_speeds >= bin_edges[j]) & (sector_speeds < bin_edges[j + 1])
                 freq_matrix[i, j] = np.sum(bin_mask)
 
         # Label sector
@@ -336,10 +362,15 @@ class WindroseGUI:
         # Thêm tên hướng (N, NE, E, …)
         dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
                 "S","SSW","SW","WSW","W","WNW","NW","NNW"]
-        dir_labels = [dirs[int(i * len(dirs)/nsector)] for i in range(nsector)]
+        dir_labels = [dirs[int(i * len(dirs) / nsector)] for i in range(nsector)]
 
         # Label bin
-        bin_labels = [f"{bin_edges[i]}-{bin_edges[i+1]}" for i in range(len(bin_edges)-1)]
+        bin_labels = []
+        for i in range(len(bin_edges) - 1):
+            if np.isinf(bin_edges[i + 1]):
+                bin_labels.append(f">= {bin_edges[i]}")
+            else:
+                bin_labels.append(f"{bin_edges[i]}-{bin_edges[i + 1]}")
 
         # DataFrame gốc: hướng là hàng
         df_counts = pd.DataFrame(freq_matrix, index=sector_labels, columns=bin_labels)
@@ -351,7 +382,8 @@ class WindroseGUI:
         df_counts = df_counts.T
 
         return df_counts
-    
+
+
     def toggle_pretty(self):
         current = getConfig()  # ✅ True/False
         config_path = getConfigPath()
