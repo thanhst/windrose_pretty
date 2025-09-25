@@ -294,7 +294,7 @@ class WindroseGUI:
             new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}") 
             new_window_table.resizable(True, True) 
             tree = ttk.Treeview(new_window_table)
-            columns = ["Tốc độ gió"] + df_counts.columns.tolist()
+            columns = ["Hướng gió"] + df_counts.columns.tolist()
             tree['columns'] = columns
             tree['show'] = 'headings'
             for col in columns:
@@ -314,7 +314,7 @@ class WindroseGUI:
             new_window_table_percent.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}") 
             new_window_table_percent.resizable(True, True) 
             tree_percent = ttk.Treeview(new_window_table_percent)
-            column_percents = ["Tốc độ gió"] + df_percent.columns.tolist()
+            column_percents = ["Hướng gió"] + df_percent.columns.tolist()
             tree_percent['columns'] = column_percents
             tree_percent['show'] = 'headings'
             for col in column_percents:
@@ -397,13 +397,14 @@ class WindroseGUI:
         
         df_counts.loc["Tổng"] = df_counts.sum()
         df_counts["Tổng"] = df_counts.sum(axis=1)
-        return df_counts
+        return df_counts.T
     
     def get_frequence_table_percent(self, df_counts):
+        df_counts = df_counts.T
         df_percent = df_counts.div(df_counts.loc["Tổng"], axis=1) * 100
         df_percent = df_percent.round(2).astype(str) + " %"
         df_percent = df_percent.drop("Tổng", axis=0)
-        return df_percent
+        return df_percent.T
 
 
 
