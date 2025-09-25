@@ -239,25 +239,37 @@ class WindroseGUI:
             except Exception as e: 
                 messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}") 
                 return 
-            calm_input = self.calm_entry.get().strip() 
+            calm_input = self.calm_entry.get().strip()
             if calm_input.lower() == "none" or calm_input =="0": 
-                calm_limit = 0 
+                calm_limit = 0
                 if len(bins) == 0 or bins[0] != 0: 
                     bins = [0] + bins 
-            else: 
-                try: 
-                    calm_limit = float(calm_input) 
-                    bins = [b for b in bins if b > calm_limit] 
-                    bins_str 
-                except Exception as e: 
-                    messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}") 
-                    return 
-            non_calm = wind_df[wind_df["spd"] > calm_limit] 
-            ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=calm_limit, nsector=16, sectoroffset=0 ) 
+                elif bins[0]==0:
+                    bins[0] = 0.1
+            else:
+                try:
+                    calm_limit = float(calm_input)
+                    # if(calm_limit<=bins[0]):
+                    #     calm_limit = bins[0]
+                    #     self.calm_entry.delete(0, tk.END)
+                    #     self.calm_entry.insert(0, str(calm_limit))
+                    bins = [b for b in bins if b > calm_limit]
+                    bins = [calm_limit] + bins
+                except Exception as e:
+                    messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}")
+                    return
+            non_calm=[]
+            total_speeds = pd.Series(total_speeds)
+            calm_count=0
+            if(calm_limit!=0):
+                non_calm = wind_df[wind_df["spd"] >= calm_limit]
+                calm_count = (total_speeds < calm_limit).sum()
+            else:
+                non_calm = wind_df[wind_df["spd"] > calm_limit]
+                calm_count = (total_speeds <= calm_limit).sum()
+            calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0
+            ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=None, nsector=16, sectoroffset=0 )
             # --- tính calm wind cho toàn bộ --- 
-            total_speeds = pd.Series(total_speeds) 
-            calm_count = (total_speeds <= calm_limit).sum() 
-            calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0 
             ax.set_legend( title="Tốc độ gió (m/s)", 
                         loc='lower right', # anchor point là góc dưới trái của legend 
                         bbox_to_anchor=(0, 0), # (x, y) vị trí ngoài chart 
@@ -285,6 +297,37 @@ class WindroseGUI:
             columns = ["Tốc độ gió"] + df_counts.columns.tolist()
             tree['columns'] = columns
             tree['show'] = 'headings'
+            for col in columns:
+                tree.heading(col, text=col)
+                tree.column(col, width=60, anchor='center')  # rộng hơn
+
+            # rows
+            for idx in df_counts.index:
+                row_values = [idx] + df_counts.loc[idx].tolist()
+                tree.insert("", "end", values=row_values)
+
+            tree.pack(fill=tk.BOTH, expand=True)
+            
+            df_percent = self.get_frequence_table_percent(df_counts)
+            new_window_table_percent = tk.Toplevel(self.root) 
+            new_window_table_percent.title("Biểu đồ tần suất gió theo phần trăm") 
+            new_window_table_percent.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}") 
+            new_window_table_percent.resizable(True, True) 
+            tree_percent = ttk.Treeview(new_window_table_percent)
+            column_percents = ["Tốc độ gió"] + df_percent.columns.tolist()
+            tree_percent['columns'] = column_percents
+            tree_percent['show'] = 'headings'
+            for col in column_percents:
+                tree_percent.heading(col, text=col)
+                tree_percent.column(col, width=60, anchor='center')  # rộng hơn
+
+            # rows
+            for idx in df_percent.index:
+                row_values = [idx] + df_percent.loc[idx].tolist()
+                tree_percent.insert("", "end", values=row_values)
+
+            tree_percent.pack(fill=tk.BOTH, expand=True)
+            
         except(Exception) as e:
             # logger.exception("Lỗi khi vẽ biểu đồ hoa gió")
             # logger.error(e)
@@ -293,16 +336,6 @@ class WindroseGUI:
         #  # rowheight lớn hơn
 
         # headers
-        for col in columns:
-            tree.heading(col, text=col)
-            tree.column(col, width=60, anchor='center')  # rộng hơn
-
-        # rows
-        for idx in df_counts.index:
-            row_values = [idx] + df_counts.loc[idx].tolist()
-            tree.insert("", "end", values=row_values)
-
-        tree.pack(fill=tk.BOTH, expand=True)
 
     def get_frequency_table(self, directions, speeds, bins, nsector=16, calm_limit=None):
         import numpy as np
@@ -312,17 +345,24 @@ class WindroseGUI:
         directions = directions.dropna().astype(float).values % 360
         speeds = speeds.dropna().astype(float).values
 
-        if calm_limit is not None:
-            mask = speeds > calm_limit
-            directions = directions[mask]
-            speeds = speeds[mask]
+        # if calm_limit is not None:
+        #     mask = speeds > calm_limit
+        #     directions = directions[mask]
+        #     speeds = speeds[mask]
+
         # half_sector = 360 / (2 * nsector)
         # sector_edges = np.linspace(-half_sector, 360 - half_sector, nsector+1)
         half_sector = 360 / (2 * nsector)
         sector_edges = np.linspace(-half_sector, 360-half_sector, nsector+1)
         # Chia sector + bin
-        bin_edges = np.array(bins)
+        bin_edges = []
+        if bins[0] != 0 and calm_limit is not None:
+            bin_edges = [0]
+
+        # Ghép bins gốc + inf
+        bin_edges += bins + [np.inf]
         freq_matrix = np.zeros((nsector, len(bin_edges)-1), dtype=int)
+
         for i in range(nsector):
             sector_mask = (directions >= sector_edges[i]) & (directions < sector_edges[i + 1])
             sector_speeds = speeds[sector_mask]
@@ -331,7 +371,7 @@ class WindroseGUI:
                 freq_matrix[i, j] = np.sum(bin_mask)
 
         # Label sector
-        sector_labels = np.round(sector_edges[:-1], 1)
+        sector_labels = sector_edges[:-1]
 
         # Thêm tên hướng (N, NE, E, …)
         dirs = ["N","NNE","NE","ENE","E","ESE","SE","SSE",
@@ -350,12 +390,21 @@ class WindroseGUI:
         df_counts = pd.DataFrame(freq_matrix, index=sector_labels, columns=bin_labels)
 
         # Đổi index từ độ -> tên hướng
-        df_counts.index = [f"{int(sector_labels[i])}° ({dir_labels[i]})" for i in range(len(sector_labels))]
+        df_counts.index = [f"{float(sector_labels[i])}° ({dir_labels[i]})" for i in range(len(sector_labels))]
 
         # Transpose để: hàng = bin tốc độ, cột = hướng
         df_counts = df_counts.T
-
+        
+        df_counts.loc["Tổng"] = df_counts.sum()
+        df_counts["Tổng"] = df_counts.sum(axis=1)
         return df_counts
+    
+    def get_frequence_table_percent(self, df_counts):
+        df_percent = df_counts.div(df_counts.loc["Tổng"], axis=1) * 100
+        df_percent = df_percent.round(2).astype(str) + " %"
+        df_percent = df_percent.drop("Tổng", axis=0)
+        return df_percent
+
 
 
     def toggle_pretty(self):
