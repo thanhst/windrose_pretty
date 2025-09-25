@@ -45,14 +45,14 @@ def plot_wind_rose_qnkt(
                   "S", "SSW", "SW", "WSW",
                   "W", "WNW", "NW", "NNW"]
     num_dir = 16
-    # tạo bins offset 11.25° để N bao gồm 0° và 360°
-    bins_dir = np.linspace(-11.25, 360+11.25, num_dir+1)
-    wind_df["dir_sector"] = pd.cut(wind_df["dir"], bins=bins_dir, labels=labels_dir, right=False, include_lowest=True)
+    bin_width = 360 / num_dir
+    bins_dir = np.linspace(-bin_width/2, 360 - bin_width/2, num_dir+1)
 
     # --- phân cấp gió ---
     speed_bins = tuple(speed_bins)
     speed_labels = [f"{int(speed_bins[i])}-{int(speed_bins[i+1])}" if i < len(speed_bins)-2 else f">{int(speed_bins[i])}"
                     for i in range(len(speed_bins)-1)]
+    wind_df["dir"] = wind_df["dir"] % 360
     wind_df["spd_cat"] = pd.cut(wind_df["spd"], bins=speed_bins, labels=speed_labels, right=False, include_lowest=True)
 
     # --- pivot table ---
@@ -69,9 +69,16 @@ def plot_wind_rose_qnkt(
         if total > 0:
             freq = freq * 100 / total
 
-    # --- vẽ polar bar chart ---
-    angles = np.deg2rad(np.arange(0, 360, 22.5))
+
+
+    bin_width = 360 / num_dir
+    # Vẽ polar bar chart (xếp chồng) – không set màu thủ công
+    edges = np.linspace(-bin_width/2, 360 - bin_width/2, num_dir + 1)
     width = 2 * np.pi / num_dir
+
+    # tâm mỗi bin = center angle
+    centers = (edges[:-1] + edges[1:]) / 2
+    angles = np.deg2rad(centers)
 
     fig = plt.figure(figsize=(9, 9))
     ax = plt.subplot(111, polar=True)
