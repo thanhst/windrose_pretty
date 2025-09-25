@@ -16,16 +16,28 @@ import sys, os
 from helper.helper import circle_crop,round_corners, RainbowCircle, resource_path
 from helper.config import getConfig,getConfigPath
 import json
+import sys
+from helper.logging import setup_logging
+
+# logger = setup_logging()
+
+# def handle_exception(exc_type, exc_value, exc_traceback):
+#     if issubclass(exc_type, KeyboardInterrupt):
+#         sys.__excepthook__(exc_type, exc_value, exc_traceback)
+#         return
+#     logger.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_traceback))
+
+# sys.excepthook = handle_exception
 
 device_name = socket.gethostname()
-print("Device name:", device_name)
+# print("Device name:", device_name)
 
-if device_name == "DESKTOP-K3UQK9B":
-    print("Chạy config dành riêng cho máy này 🚀")
-if device_name == "R734":
-    print("Máy này là máy của Huyền này 🚀")
-if device_name == "Thanh-Laptop":
-    print("Máy này là máy của Thanh này 🚀")
+# if device_name == "DESKTOP-K3UQK9B":
+#     print("Chạy config dành riêng cho máy này 🚀")
+# if device_name == "R734":
+#     print("Máy này là máy của Huyền này 🚀")
+# if device_name == "Thanh-Laptop":
+#     print("Máy này là máy của Thanh này 🚀")
 
 
 
@@ -175,105 +187,108 @@ class WindroseGUI:
                     self.filter_scrollbar.pack(side=tk.RIGHT, fill="y")
                 # Bật cuộn cho canvas, chỉ canvas thôi
                 self.scroller._bind_mousewheel(self.filter_canvas)
-    def plot_windrose(self): 
-        import numpy as np 
-        if self.dataLoader.df is None: 
-            messagebox.showwarning("Không có dữ liệu", "Hãy load dữ liệu trước khi vẽ biểu đồ!") 
-            return 
-        direction_cols = self.windcom.get_selected_columns() 
-        speed_cols = self.speedcom.get_selected_columns() 
-        if not direction_cols or not speed_cols: 
-            messagebox.showwarning("Chưa chọn", "Hãy chọn ít nhất một cột hướng gió và tốc độ gió!") 
-            return 
-        filtered_df = self.filter.apply_filters() 
-        if filtered_df.empty: 
-            messagebox.showwarning("Không có dữ liệu", "Không có dữ liệu sau khi áp dụng bộ lọc!") 
-            return 
-        fig = plt.Figure(figsize=(6, 6), dpi=100) 
-        ax = WindroseAxes.from_ax(fig=fig) 
-        total_speeds = [] 
-        all_directions = [] 
-        all_speeds = [] 
-        df_list = [] 
-        for d_col, s_col in zip(direction_cols, speed_cols): 
-            if d_col not in filtered_df.columns or s_col not in filtered_df.columns: 
-                continue 
-            tmp = filtered_df[[d_col, s_col]].dropna()  
-            # tmp = tmp[tmp[s_col] > 0] 
-            if tmp.empty: 
-                continue 
-            directions = tmp[d_col].astype(float) 
-            speeds = tmp[s_col].astype(float) 
-            tmp.columns = ["dir", "spd"] 
-            df_list.append(tmp) 
-            # directions = filtered_df[d_col].dropna().astype(float) 
-            # # speeds = filtered_df[s_col].dropna().astype(float) 
-            if directions.max() <= 36: 
-                directions = directions * 10 
-            all_directions.append(directions) 
-            all_speeds.append(speeds) 
-            if directions.empty or speeds.empty: 
-                continue 
-            total_speeds.extend(speeds.tolist()) 
-            wind_df = pd.concat(df_list, ignore_index=True) # Chuẩn hóa hướng 
-            if wind_df["dir"].max() <= 36: 
-                wind_df["dir"] = wind_df["dir"] * 10 
-        try: 
-            bins_str = self.bins_entry.get() 
-            bins = [float(b.strip()) for b in bins_str.split(",")] 
-            self.bins_entry.delete(0, tk.END) 
-            self.bins_entry.insert(0, ",".join(str(int(x)) for x in bins)) 
-        except Exception as e: 
-            messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}") 
-            return 
-        calm_input = self.calm_entry.get().strip() 
-        if calm_input.lower() == "none" or calm_input =="0": 
-            calm_limit = 0 
-            if len(bins) == 0 or bins[0] != 0: 
-                bins = [0] + bins 
-        else: 
-            try: 
-                calm_limit = float(calm_input) 
-                bins = [b for b in bins if b > calm_limit] 
-                bins_str 
-            except Exception as e: 
-                messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}") 
+    def plot_windrose(self):
+        try:
+            import numpy as np 
+            if self.dataLoader.df is None: 
+                messagebox.showwarning("Không có dữ liệu", "Hãy load dữ liệu trước khi vẽ biểu đồ!") 
                 return 
-        non_calm = wind_df[wind_df["spd"] > calm_limit] 
-        non_calm.to_csv("wind_non_calm_lib.csv", index=False, encoding="utf-8-sig") 
-        ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=calm_limit, nsector=16, sectoroffset=0 ) 
-        # --- tính calm wind cho toàn bộ --- 
-        total_speeds = pd.Series(total_speeds) 
-        calm_count = (total_speeds <= calm_limit).sum() 
-        calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0 
-        ax.set_legend( title="Tốc độ gió (m/s)", 
-                      loc='lower right', # anchor point là góc dưới trái của legend 
-                      bbox_to_anchor=(0, 0), # (x, y) vị trí ngoài chart 
-                      fontsize=8, ) 
-        labels_dir = ["E","ENE","NE","NNE","N","NNW","NW","WNW","W","WSW","SW","SSW","S","SSE","SE","ESE"]
-        angles = np.deg2rad(np.arange(0,360,360/16)) # 16 hướng 
-        ax.set_xticks(angles) 
-        ax.set_xticklabels(labels_dir)
-        ax.tick_params(pad=15)
-        fig.text(0.5, 0.02, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10) 
-        new_window = tk.Toplevel(self.root) 
-        new_window.title("Windrose Chart") 
-        new_window.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.8)}") 
-        canvas = FigureCanvasTkAgg(fig, master=new_window) 
-        canvas.draw() 
-        canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True) 
-        all_directions = pd.concat(all_directions, ignore_index=True) 
-        all_speeds = pd.concat(all_speeds, ignore_index=True) 
-        df_counts = self.get_frequency_table(all_directions, all_speeds, bins, nsector=16, calm_limit=calm_limit) 
-        new_window_table = tk.Toplevel(self.root) 
-        new_window_table.title("Biểu đồ tần suất gió") 
-        new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}") 
-        new_window_table.resizable(True, True) 
-        tree = ttk.Treeview(new_window_table)
-        columns = ["Tốc độ gió"] + df_counts.columns.tolist()
-        tree['columns'] = columns
-        tree['show'] = 'headings'
-
+            direction_cols = self.windcom.get_selected_columns() 
+            speed_cols = self.speedcom.get_selected_columns() 
+            if not direction_cols or not speed_cols: 
+                messagebox.showwarning("Chưa chọn", "Hãy chọn ít nhất một cột hướng gió và tốc độ gió!") 
+                return 
+            filtered_df = self.filter.apply_filters() 
+            if filtered_df.empty: 
+                messagebox.showwarning("Không có dữ liệu", "Không có dữ liệu sau khi áp dụng bộ lọc!") 
+                return 
+            fig = plt.Figure(figsize=(6, 6), dpi=100) 
+            ax = WindroseAxes.from_ax(fig=fig) 
+            total_speeds = [] 
+            all_directions = [] 
+            all_speeds = [] 
+            df_list = [] 
+            for d_col, s_col in zip(direction_cols, speed_cols): 
+                if d_col not in filtered_df.columns or s_col not in filtered_df.columns: 
+                    continue 
+                tmp = filtered_df[[d_col, s_col]].dropna()  
+                # tmp = tmp[tmp[s_col] > 0] 
+                if tmp.empty: 
+                    continue 
+                directions = tmp[d_col].astype(float) 
+                speeds = tmp[s_col].astype(float) 
+                tmp.columns = ["dir", "spd"] 
+                df_list.append(tmp) 
+                # directions = filtered_df[d_col].dropna().astype(float) 
+                # # speeds = filtered_df[s_col].dropna().astype(float) 
+                if directions.max() <= 36: 
+                    directions = directions * 10 
+                all_directions.append(directions) 
+                all_speeds.append(speeds) 
+                if directions.empty or speeds.empty: 
+                    continue 
+                total_speeds.extend(speeds.tolist()) 
+                wind_df = pd.concat(df_list, ignore_index=True) # Chuẩn hóa hướng 
+                if wind_df["dir"].max() <= 36: 
+                    wind_df["dir"] = wind_df["dir"] * 10 
+            try: 
+                bins_str = self.bins_entry.get() 
+                bins = [float(b.strip()) for b in bins_str.split(",")] 
+                self.bins_entry.delete(0, tk.END) 
+                self.bins_entry.insert(0, ",".join(str(int(x)) for x in bins)) 
+            except Exception as e: 
+                messagebox.showerror("Lỗi", f"Bins không hợp lệ: {e}") 
+                return 
+            calm_input = self.calm_entry.get().strip() 
+            if calm_input.lower() == "none" or calm_input =="0": 
+                calm_limit = 0 
+                if len(bins) == 0 or bins[0] != 0: 
+                    bins = [0] + bins 
+            else: 
+                try: 
+                    calm_limit = float(calm_input) 
+                    bins = [b for b in bins if b > calm_limit] 
+                    bins_str 
+                except Exception as e: 
+                    messagebox.showerror("Lỗi", f"Calm limit không hợp lệ: {e}") 
+                    return 
+            non_calm = wind_df[wind_df["spd"] > calm_limit] 
+            ax.bar( non_calm["dir"], non_calm["spd"], bins=bins, normed=True, opening=1, edgecolor="white", cmap=plt.cm.jet, calm_limit=calm_limit, nsector=16, sectoroffset=0 ) 
+            # --- tính calm wind cho toàn bộ --- 
+            total_speeds = pd.Series(total_speeds) 
+            calm_count = (total_speeds <= calm_limit).sum() 
+            calm_percent = calm_count / len(total_speeds) * 100 if len(total_speeds) > 0 else 0 
+            ax.set_legend( title="Tốc độ gió (m/s)", 
+                        loc='lower right', # anchor point là góc dưới trái của legend 
+                        bbox_to_anchor=(0, 0), # (x, y) vị trí ngoài chart 
+                        fontsize=8, ) 
+            labels_dir = ["E","ENE","NE","NNE","N","NNW","NW","WNW","W","WSW","SW","SSW","S","SSE","SE","ESE"]
+            angles = np.deg2rad(np.arange(0,360,360/16)) # 16 hướng 
+            ax.set_xticks(angles) 
+            ax.set_xticklabels(labels_dir)
+            ax.tick_params(pad=15)
+            fig.text(0.5, 0.02, f"Tần suất gió lặng: {calm_percent:.2f}%", ha="center", fontsize=10) 
+            new_window = tk.Toplevel(self.root) 
+            new_window.title("Windrose Chart") 
+            new_window.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.8)}") 
+            canvas = FigureCanvasTkAgg(fig, master=new_window) 
+            canvas.draw() 
+            canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True) 
+            all_directions = pd.concat(all_directions, ignore_index=True) 
+            all_speeds = pd.concat(all_speeds, ignore_index=True) 
+            df_counts = self.get_frequency_table(all_directions, all_speeds, bins, nsector=16, calm_limit=calm_limit) 
+            new_window_table = tk.Toplevel(self.root) 
+            new_window_table.title("Biểu đồ tần suất gió") 
+            new_window_table.geometry(f"{int(self.root.winfo_screenwidth()*0.8)}x{int(self.root.winfo_screenheight()*0.5)}") 
+            new_window_table.resizable(True, True) 
+            tree = ttk.Treeview(new_window_table)
+            columns = ["Tốc độ gió"] + df_counts.columns.tolist()
+            tree['columns'] = columns
+            tree['show'] = 'headings'
+        except(Exception) as e:
+            # logger.exception("Lỗi khi vẽ biểu đồ hoa gió")
+            # logger.error(e)
+            messagebox.showerror("Lỗi", f"Đã có lỗi xảy ra: {e}")
         # Customize style
         #  # rowheight lớn hơn
 
@@ -372,11 +387,9 @@ def open_extra_window(root):
     extra_win.configure(bg="#ffe6f0") 
     extra_win.after(15000, extra_win.destroy)
 
-    # Frame để chứa 2 ảnh cạnh nhau
     frame = tk.Frame(extra_win, bg="#ffe6f0")
     frame.pack(expand=True, fill="both", padx=20, pady=20)
 
-    # Ảnh bên trái (vuông bo góc)
     left_img = Image.open(resource_path(os.path.join("public", "img", "image.png"))).resize((int(root.winfo_screenwidth()*0.2), int(root.winfo_screenwidth()*0.2)))
     left_img = round_corners(left_img, radius=50)
     left_tk = ImageTk.PhotoImage(left_img)
@@ -388,7 +401,6 @@ def open_extra_window(root):
     left_label.pack()
     tk.Label(left_frame, text="Tặng hoa để người đẹp nhất vũ trụ bất tử", fg="black", bg="#ffe6f0", font=("Arial", 16)).pack(pady=10)
 
-    # Ảnh bên phải (tròn)
     right_frame = tk.Frame(frame, bg="#ffe6f0")
     right_frame.pack(side="right", expand=True, padx=20)
     
@@ -405,7 +417,7 @@ def open_extra_window(root):
 
     extra_win.lift()
     extra_win.focus_force()
-    extra_win.transient(root)   # luôn nổi trên root
+    extra_win.transient(root)
     extra_win.protocol("WM_DELETE_WINDOW", extra_win.destroy)
 
 
@@ -433,15 +445,10 @@ if __name__ == "__main__":
     container.bind("<Configure>", on_configure)
     main_canvas.bind("<Configure>", on_configure)  # khi canvas resize thì container cũng resize
 
-    # cuộn bằng con lăn chuột
     def _on_mousewheel(event):
         main_canvas.yview_scroll(int(-1*(event.delta/120)), "units")
     main_canvas.bind_all("<MouseWheel>", _on_mousewheel)
-    # try:
-    #     root.iconbitmap("./icon/icon.png")
-    # except:
-    #     icon = PhotoImage(file="./icon/icon.png")
-    #     root.iconphoto(True, icon)
+
     if device_name == "R734" and getConfig()==True:
         icon = PhotoImage(file=resource_path(os.path.join("icon", "icon_user.png")))
         root.iconphoto(True, icon)
